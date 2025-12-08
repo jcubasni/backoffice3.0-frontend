@@ -1,0 +1,4 @@
+export enum Modals {
+  ADD_EMPLOYED = "ADD_EMPLOYED",
+  EDIT_EMPLOYED = "EDIT_EMPLOYED",
+}

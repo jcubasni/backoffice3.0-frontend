@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    "lib": ["DOM", "ES2020"],
+    "jsx": "react-jsx",
+    "target": "ES2020",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "useDefineForClassFields": true,
+    /* modules */
+    "module": "ESNext",
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    /* type checking */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"],
+      "@shadcn/*": ["./src/components/ui/*"],
+      "@utils/*": ["./src/lib/*"],
+      "@auth/*": ["./src/app/auth/*"],
+      "@bank-deposit/*": ["./src/app/bank-deposit/*"],
+      "@clients/*": ["src/app/accounts/*"],
+      "@collections/*": ["./src/app/collections/*"],
+      "@common/*": ["./src/app/common/*"],
+      "@companies/*": ["./src/app/companies/*"],
+      "@configurations/*": ["./src/app/configurations/*"],
+      "@maintenance/*": ["./src/app/configurations/maintenance/*"],
+      "@contometer/*": ["./src/app/contometer/*"],
+      "@credits/*": ["./src/app/credits/*"],
+      "@daily-report/*": ["./src/app/daily-report/*"],
+      "@detail-boxes/*": ["./src/app/detail-boxes/*"],
+      "@dipstick/*": ["./src/app/dipstick/*"],
+      "@inventory/*": ["./src/app/inventory/*"],
+      "@pdf/*": ["./src/app/pdf/*"],
+      "@sales/*": ["./src/app/sales/*"],
+      "@support/*": ["./src/app/support/*"],
+      "@users/*": ["./src/app/users/*"],
+      "@suppliers/*": ["./src/app/suppliers/*"],
+      "@accounts/*": ["./src/app/accounts/*"]
+    }
+  },
+  "include": ["src"]
+}

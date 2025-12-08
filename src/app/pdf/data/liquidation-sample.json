@@ -1,0 +1,184 @@
+{
+  "printerName": "POS80",
+  "header": [
+    { "label": "K&R TRADING S.A.C", "value": "", "format": "BOLD" },
+    { "label": "JR. CAVERO Y MUÑOZ NRO 355", "value": "", "format": "NORMAL" },
+    { "label": "TUMBES - TUMBES - TUMBES", "value": "", "format": "NORMAL" }
+  ],
+  "document": [
+    { "label": "CIERRE DE TURNO", "value": "", "format": "BOLD" },
+    { "label": "TURNO", "value": "2", "format": "NORMAL" },
+    { "label": "FECHA DE TRABAJO", "value": "05/03/2025", "format": "NORMAL" },
+    { "label": "CAJA", "value": "25092205", "format": "NORMAL" },
+    { "label": "USUARIO", "value": "USER1", "format": "NORMAL" },
+    {
+      "label": "FECHA IMPRESIÓN",
+      "value": "05/03/2025 12:25:41",
+      "format": "NORMAL"
+    }
+  ],
+  "items": [
+    {
+      "description": "VENTAS POR DEPARTAMENTO",
+      "qty": 0,
+      "price": 0,
+      "total": 0
+    },
+
+    {
+      "description": "COMBUSTIBLE",
+      "code": "102",
+      "qty": 0,
+      "price": 0,
+      "total": 1890.9
+    },
+    {
+      "description": "MARKET",
+      "code": "103",
+      "qty": 0,
+      "price": 0,
+      "total": 20.0
+    },
+    { "description": "TOTAL", "qty": 0, "price": 0, "total": 1910.9 },
+
+    { "description": "VENTAS POR CARA", "qty": 0, "price": 0, "total": 0 },
+    {
+      "description": "CARA",
+      "code": "01",
+      "qty": 0,
+      "price": 0,
+      "total": 903.48
+    },
+    {
+      "description": "CARA",
+      "code": "02",
+      "qty": 0,
+      "price": 0,
+      "total": 803.49
+    },
+    {
+      "description": "CARA",
+      "code": "04",
+      "qty": 0,
+      "price": 0,
+      "total": 703.5
+    },
+    { "description": "TOTAL", "qty": 0, "price": 0, "total": 2410.47 },
+
+    { "description": "VENTAS POR PRODUCTO", "qty": 0, "price": 0, "total": 0 },
+    {
+      "description": "GASOHOL REGULAR",
+      "code": "02",
+      "qty": 66.553,
+      "price": 0,
+      "total": 1078.05
+    },
+    {
+      "description": "GASOHOL PREMIUM",
+      "code": "03",
+      "qty": 25.156,
+      "price": 0,
+      "total": 447.73
+    },
+    {
+      "description": "DIESEL B5 S50 UV",
+      "code": "05",
+      "qty": 20.341,
+      "price": 0,
+      "total": 365.12
+    },
+    { "description": "TOTAL", "qty": 112.05, "price": 0, "total": 1890.9 }
+  ],
+  "totals": [
+    { "label": "TOTAL VTA BRUTA", "value": "1890.90", "format": "NORMAL" },
+    { "label": "TOTAL DSCTO", "value": "60.88", "format": "NORMAL" },
+    { "label": "TOTAL TRANS. EXONERADA", "value": "0.00", "format": "NORMAL" },
+    { "label": "TOTAL SERAFIN", "value": "25.20", "format": "NORMAL" },
+    { "label": "TOTAL VTA NETA", "value": "1804.82", "format": "DOUBLE" },
+    { "label": "TOTAL NOTA VENTA", "value": "680.52", "format": "NORMAL" },
+    { "label": "TOTAL FACT. CRÉDITO", "value": "423.56", "format": "NORMAL" },
+    { "label": "TOTAL CONTADO", "value": "0.00", "format": "DOUBLE" }
+  ],
+  "deposits": [
+    { "label": "VISA", "value": "543.25" },
+    { "label": "MASTERCARD", "value": "325.22" },
+    { "label": "DEPOSITO", "value": "868.47" }
+  ],
+  "cash": [
+    { "label": "EFECTIVO SOLES", "value": "973.69" },
+    { "label": "DEPO. EFECTIVO", "value": "600.00" },
+    { "label": "OTROS GASTOS", "value": "200.00" },
+    { "label": "DIF. EFECTIVO", "value": "173.69" }
+  ],
+  "discountClients": [
+    { "label": "20409494294", "value": "5.2,02,2.80" },
+    { "label": "20836547892", "value": "6.5,03,20.50" },
+    { "label": "23654789651", "value": "7.2,05,12.50" }
+  ],
+  "creditClients": [
+    { "label": "20409494294", "value": "5.2,02,50.00" },
+    { "label": "21456987123", "value": "8.5,02,80.00" },
+    { "label": "20836547892", "value": "6.5,03,70.00" },
+    { "label": "23654789651", "value": "7.2,05,75.00" }
+  ],
+  "creditSummary": [
+    { "label": "02 - REGULAR", "value": "13.7,130.00" },
+    { "label": "03 - PREMIUM", "value": "6.5,70.00" },
+    { "label": "05 - DIESEL", "value": "7.2,75.00" }
+  ],
+  "cardDetails": [
+    { "label": "VISA", "value": "4869,35.00" },
+    { "label": "VISA", "value": "4586,150.00" },
+    { "label": "VISA", "value": "8745,100.00" },
+    { "label": "MASTERCARD", "value": "4521,10.00" },
+    { "label": "MASTERCARD", "value": "6235,70.00" }
+  ],
+"contometros": [
+  {
+    "lado": "Lado 1",
+    "producto": "M1 - DIESEL",
+    "contInicial": "1289.457",
+    "contFinal": "1177.989",
+    "volContometro": "111.468",
+    "volVenta": "111.463",
+    "diferencia": "0.005"
+  },
+  {
+    "lado": "Lado 1",
+    "producto": "M2 - PREMIUM",
+    "contInicial": "652.985",
+    "contFinal": "553.118",
+    "volContometro": "99.867",
+    "volVenta": "99.868",
+    "diferencia": "-0.001"
+  },
+  {
+    "lado": "Lado 1",
+    "producto": "M3 - REGULAR",
+    "contInicial": "3598.942",
+    "contFinal": "3510.729",
+    "volContometro": "88.213",
+    "volVenta": "88.212",
+    "diferencia": "0.001"
+  },
+  {
+    "lado": "Lado 2",
+    "producto": "M1 - DIESEL",
+    "contInicial": "751.658",
+    "contFinal": "638.237",
+    "volContometro": "113.421",
+    "volVenta": "113.421",
+    "diferencia": "0.000"
+  },
+  {
+    "lado": "Lado 2",
+    "producto": "M2 - PREMIUM",
+    "contInicial": "1356.893",
+    "contFinal": "1154.882",
+    "volContometro": "202.011",
+    "volVenta": "202.013",
+    "diferencia": "-0.002"
+  }
+]
+
+}

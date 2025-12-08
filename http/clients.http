@@ -1,0 +1,19 @@
+### login
+POST {{PUBLIC_API_URL}}/auth/login
+Content-Type: application/json
+
+{
+  "username": "user1",
+  "password": "jadal123"
+}
+
+### list of documents types
+GET {{PUBLIC_API_URL}}/clients/document-types
+Content-Type: application/json
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+x-local-id: {{login.response.body.$.data.locals.0.localId}}
+
+### list of account types
+GET {{PUBLIC_API_URL}}/accounts/types
+Authorization: Bearer {{login.response.body.$.data.accessToken}}
+x-local-id: {{login.response.body.$.data.locals.0.localId}}

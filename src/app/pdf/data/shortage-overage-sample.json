@@ -1,0 +1,52 @@
+{
+  "company": "JADAL GLOBAL SERVICES S.A.C",
+  "ruc": "20611173432",
+  "address": "PASEO DE LA REPÚBLICA #314",
+  "startDate": "15/10/2025",
+  "endDate": "17/10/2025",
+  "turns": [
+    {
+      "name": "Mañana",
+      "date": "15/10/2025",
+      "boxes": [
+        {
+          "code": "25102201",
+          "responsible": "José",
+          "deposit": { "cash": 2345.6, "card": 426.14 },
+          "sales": { "cash": 1789.3, "card": 982.39 },
+          "balance": 0.05
+        },
+        {
+          "code": "25102202",
+          "responsible": "María",
+          "deposit": { "cash": 878.9, "card": 1060.71 },
+          "sales": { "cash": 907.2, "card": 1032.4 },
+          "balance": 0.01
+        },
+        {
+          "code": "25102203",
+          "responsible": "Juan",
+          "deposit": { "cash": 2346.6, "card": 784.77 },
+          "sales": { "cash": 2987.5, "card": 148.78 },
+          "balance": -4.91
+        },
+        {
+          "code": "25102204",
+          "responsible": "Ester",
+          "deposit": { "cash": 1985.9, "card": 301.19 },
+          "sales": { "cash": 1897.7, "card": 389.41 },
+          "balance": -0.02
+        },
+        {
+          "code": "25102205",
+          "responsible": "Brenda",
+          "deposit": { "cash": 1834.3, "card": 345.11 },
+          "sales": { "cash": 1987.3, "card": 192.14 },
+          "balance": -0.03
+        }
+      ]
+    },
+    { "name": "Tarde", "date": "15/10/2025", "boxes": [] },
+    { "name": "Noche", "date": "15/10/2025", "boxes": [] }
+  ]
+}
