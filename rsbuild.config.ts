@@ -6,7 +6,7 @@ import { TanStackRouterRspack } from "@tanstack/router-plugin/rspack"
 export default defineConfig({
   plugins: [pluginReact()],
   html: {
-    favicon: "./public/img/logo-gray.ico",
+    favicon: "./public/img/ISI-icon-logo2.ico",
     tags: [
       {
         tag: "link",
