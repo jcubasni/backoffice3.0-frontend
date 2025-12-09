@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { BadgePlus, Edit2, Trash2 } from "lucide-react"
+import { BadgePlus, Download, Edit2, FileText, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
 import { createColumnHelper, type ColumnDef } from "@tanstack/react-table"
 import { ModalContainer } from "@/shared/components/modals/modal-container"
@@ -84,21 +84,61 @@ function RouteComponent() {
 
   return (
     <>
-      <HeaderContent>
-        <HeaderContent.Left>
-          <Input
-            label="Buscar vehículo"
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-72! max-w-full"
-          />
-        </HeaderContent.Left>
-        <HeaderContent.Right>
-          <Button variant="outline" size="header" onClick={handleOpenNew}>
-            <BadgePlus className="mr-2 h-4 w-4" />
-            Nuevo
-          </Button>
-        </HeaderContent.Right>
-      </HeaderContent>
+     <HeaderContent>
+
+  {/* Búsqueda */}
+  <HeaderContent.Left>
+    <Input
+      label="Buscar vehículo"
+      onChange={(e) => setSearch(e.target.value)}
+      className="w-72 max-w-full"
+    />
+  </HeaderContent.Left>
+
+  {/* Botones */}
+  <HeaderContent.Right>
+
+    {/* Exportar */}
+    <Button
+      size="header"
+      className="
+        hover:bg-green-800 hover:text-white
+        dark:hover:bg-green-900 dark:hover:text-white
+        transition-colors
+      "
+      onClick={() => {}}
+    >
+      <Download className="mr-2 h-4 w-4" />
+      Exportar
+    </Button>
+
+    {/* Ver PDF */}
+    <Button
+      size="header"
+      className="
+        hover:bg-red-700 hover:text-white
+        dark:hover:bg-red-900 dark:hover:text-white
+        transition-colors
+      "
+      onClick={() => {}}
+    >
+      <FileText className="mr-2 h-4 w-4" />
+      Ver PDF
+    </Button>
+
+    {/* Nuevo */}
+    <Button
+      size="header"
+      onClick={handleOpenNew}
+    >
+      <BadgePlus className="mr-2 h-4 w-4" />
+      Nuevo
+    </Button>
+
+  </HeaderContent.Right>
+
+</HeaderContent>
+
 
       <DataTable table={table} />
 

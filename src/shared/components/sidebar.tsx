@@ -67,13 +67,13 @@ export const Sidebar = () => {
 
   return (
     <SidebarCustom>
-      <SidebarHeader className="py-4">
+      <SidebarHeader className="py-10">
         <Image
-          src="/img/logo-gray.svg"
+          src="/img/isi logo new.png"
           alt="logo"
           height={200}
           width={200}
-          className="mx-auto w-28 rounded-full bg-white object-contain shadow-sm"
+          className="mx-auto w-28"
         />
       </SidebarHeader>
       <SidebarContent className="px-1.5">

@@ -28,15 +28,17 @@ export const FormLogin = () => {
       onSubmit={onSubmit}
       className="items-center gap-6 sm:w-96"
     >
-      <h1 className="border-blue-950/40 border-b pb-2 font-bold text-3xl text-blue-950 dark:border-secondary-foreground dark:text-secondary-foreground">
+      <h1 className="border-blue-950/40 border-b pb-2 font-bold text-3xl text-blue-950 dark:border-secondary-foreground dark:text-secondary-foreground ">
         Inicio de sesión
       </h1>
       <Image
-        src="/img/logo-gray.svg"
+        src="/img/isi logo new.png"
         alt="logo"
         height={160}
         width={160}
-        className="rounded-full dark:border-2 dark:border-white dark:bg-white"
+        className="mb-12"
+        
+        
       />
       <InputForm label="Usuario" name="username" classContainer="w-full" />
       <InputForm
