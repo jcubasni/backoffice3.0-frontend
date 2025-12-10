@@ -40,6 +40,7 @@ export const salesColumns: ColumnDef<SaleResponse>[] = [
     header: "Estado",
     cell: ({ row }) => {
       const active = row.original.state === 1;
+      console.log("row.original.state", row.original.state);
       return (
         <Badge variant={active ? "green" : "amber"}>
           {active ? "Activo" : "Anulado"}

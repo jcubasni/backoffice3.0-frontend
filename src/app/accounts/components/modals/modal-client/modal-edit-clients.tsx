@@ -1,30 +1,34 @@
 "use client"
 
-import { SidebarEditClient } from "./sidebar-edit-client"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimatePresence, motion } from "framer-motion"
 import { Save } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
+
+import { SidebarEditClient } from "./sidebar-edit-client"
 import { clientTabs } from "@/app/accounts/lib/client-tabs"
 import {
   EditClientSchema,
   editClientSchema,
 } from "@/app/accounts/schemas/edit-client.schema"
+import { useEditClient } from "@/app/accounts/hooks/useClientsService"
 import { Modals } from "@/app/accounts/types/modals-name"
+
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormWrapper } from "@/shared/components/form/form-wrapper"
 import Modal from "@/shared/components/ui/modal"
 import { useModalStore } from "@/shared/store/modal.store"
-import { toast } from "sonner"   // 🟢 IMPORTANTE
 
 export default function ModalEditClients() {
   const [activeTab, setActiveTab] = useState("misDatos")
 
   const dataModal = useModalStore((state) =>
     state.openModals.find((modal) => modal.id === Modals.EDIT_CLIENT),
-  )?.prop
+  )?.prop as any | undefined
+
+  const { mutate, isPending } = useEditClient()
 
   const form = useForm<EditClientSchema>({
     resolver: zodResolver(editClientSchema),
@@ -52,31 +56,29 @@ export default function ModalEditClients() {
         province: dataModal.province ?? "",
         district: dataModal.district ?? "",
         email: dataModal.email ?? "",
-        phone: dataModal.phone ?? "",
+        phone: dataModal.phoneNumber ?? dataModal.phone ?? "",
       })
     }
   }, [dataModal, form])
 
-  // 🟢 AQUÍ ESTÁ LA FUNCIONALIDAD QUE TE PEDÍA TU JEFE
-  const handleSubmit = async (data: EditClientSchema) => {
-    if (!dataModal?.id) {
-      console.error("Client ID not found")
+  const handleSubmit = (data: EditClientSchema) => {
+    if (!dataModal?.documentNumber) {
+      console.error("Client documentNumber not found")
       return
     }
 
-    // 🟦 Simulación de request (como si hablara con el backend)
-    await new Promise((resolve) => setTimeout(resolve, 700))
-
-    // 🟢 Toast igual al de crear cliente
-    toast.success("Cliente actualizado correctamente")
-
-    // 🟣 Cerrar modal
-    useModalStore.getState().closeModal(Modals.EDIT_CLIENT)
+    // ✅ usamos documentNumber porque ClientResponse no tiene id
+    mutate({
+      documentNumber: dataModal.documentNumber,
+      data,
+    })
+    // useEditClient se encarga del toast y cerrar el modal en onSuccess
   }
 
   const submitForm = form.handleSubmit(handleSubmit)
-
   const editableTabs = clientTabs.filter((tab) => tab.id === "misDatos")
+
+  if (!dataModal) return null
 
   return (
     <Modal
@@ -90,7 +92,7 @@ export default function ModalEditClients() {
         className="flex min-h-[85vh] flex-1 flex-col gap-6 lg:flex-row"
       >
         {/* SIDEBAR */}
-        <SidebarEditClient onSubmit={submitForm} />
+        <SidebarEditClient onSubmit={submitForm} disabled={isPending} />
 
         {/* CONTENIDO */}
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
@@ -143,9 +145,9 @@ export default function ModalEditClients() {
 
           {/* BOTÓN FINAL EN MODO MOBILE */}
           <div className="w-full px-4 pb-4 lg:hidden">
-            <Button type="submit" className="w-full">
+            <Button type="submit" className="w-full" disabled={isPending}>
               <Save className="size-4" />
-              Guardar cambios
+              {isPending ? "Guardando..." : "Guardar cambios"}
             </Button>
           </div>
         </main>

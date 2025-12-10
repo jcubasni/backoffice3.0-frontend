@@ -12,7 +12,7 @@ const optionalString = z
   .transform((val) => (val === "" ? undefined : val))
 
 const numberCoerce = z.coerce.number().int()
-const optionalNumber = numberCoerce
+const optionalNumber = numberCoerce 
   .optional()
   .transform((val) => (val === 0 ? undefined : val))
 
