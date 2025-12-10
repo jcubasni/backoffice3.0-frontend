@@ -22,13 +22,18 @@ interface PdfDailyReportProps {
 export const PdfDailyReport = ({ dailyReportId }: PdfDailyReportProps) => {
   const { selectedBranch } = useBranchStore()
   const { data, isLoading } = useDailyReportService(dailyReportId)
+  console.log("PDF DAILY fuelSummary =>", data?.fuelSummary)
+
   if (isLoading)
     return (
       <div className="flex size-full items-center justify-center">
         <SyncLoader />
       </div>
     )
-  const period = data?.fuelSummary?.[0].dailyReportPeriod
+
+  // 👇 FIX: evitar TypeError si no hay fuelSummary o viene vacío
+  const period = data?.fuelSummary?.[0]?.dailyReportPeriod
+
   return (
     <PDFViewer className="max-h-full min-h-[60rem] w-full flex-1">
       <PdfBase>
@@ -45,18 +50,23 @@ export const PdfDailyReport = ({ dailyReportId }: PdfDailyReportProps) => {
             <Text>{format(new Date(), "HH:mm:ss")}</Text>
           </View>
         </View>
+
         <Text style={styles.title}>
           PARTE DIARIO -{" "}
           {period &&
             formatDate(period, "EEEE dd 'de' MMMM 'del' yyyy")?.toUpperCase()}
         </Text>
+
         <TableFuels data={data?.fuelSummary || []} />
+
         <View style={styles.content}>
           <TableOutput data={data?.fuelAdjustments} />
           <TableAdditional data={data?.otherProducts} />
           <TableTotals data={data?.mainTotals} />
         </View>
+
         {data?.salesSummary && <TableDetails details={data.salesSummary} />}
+
         {data?.bankDeposits && (
           <TableBankMovementCashFlow
             bankMovement={data.bankDeposits}

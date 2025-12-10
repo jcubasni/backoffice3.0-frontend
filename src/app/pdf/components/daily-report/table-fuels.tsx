@@ -11,6 +11,33 @@ interface TableFuelsProps {
 }
 
 export const TableFuels = ({ data }: TableFuelsProps) => {
+  // 👇 Si no viene nada del backend, mostramos una fila “dummy”
+  const rows: FuelSummary[] =
+    data && data.length > 0
+      ? data
+      : [
+          {
+            // Estos campos dependen de tu tipo FuelSummary,
+            // usa los nombres reales que tengas
+            productName: "SIN DATOS",
+            initialSalesStock: 0,
+            inputGallons: 0,
+            internalConsumption: 0,
+            salesGallons: 0,
+            finalSalesStock: 0,
+            dailyDifference: 0,
+            monthlyDifference: 0,
+            totalOutputAmount: 0,
+            // si tu tipo tiene más campos obligatorios, ponlos en 0 o null
+          } as FuelSummary,
+        ]
+
+  // 👇 Total de la última columna (si hay datos, suma; si no, será 0)
+  const totalSalida = rows.reduce(
+    (acc, fuel) => acc + (fuel.totalOutputAmount ?? 0),
+    0,
+  )
+
   return (
     <View style={{ marginTop: 10, marginBottom: 20 }}>
       <Table weightings={[0.2]}>
@@ -31,9 +58,10 @@ export const TableFuels = ({ data }: TableFuelsProps) => {
           <TableHeaderDoubleLine firstLine="Direrencia de" secondLine="Mes" />
           <TableHeaderDoubleLine firstLine="Total" secondLine="Salida" />
         </THeader>
-        {data.map((fuel, index) => (
+
+        {rows.map((fuel, index) => (
           <TR
-            key={fuel.productName}
+            key={fuel.productName ?? index}
             style={{
               backgroundColor: index % 2 !== 0 ? Colors.bg : Colors.white,
             }}
@@ -65,11 +93,13 @@ export const TableFuels = ({ data }: TableFuelsProps) => {
             </TD>
           </TR>
         ))}
+
+        {/* Fila de totales */}
         <TR style={styles.footerCell}>
           {[...Array(8)].map((_, i) => (
             <TD key={i} style={styles.contentCell} />
           ))}
-          <TD style={styles.contentCell}>{formatCurrency(0)}</TD>
+          <TD style={styles.contentCell}>{formatCurrency(totalSalida)}</TD>
         </TR>
       </Table>
     </View>
