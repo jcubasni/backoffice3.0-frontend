@@ -56,6 +56,7 @@ export default function ModalEditClients() {
         province: dataModal.province ?? "",
         district: dataModal.district ?? "",
         email: dataModal.email ?? "",
+        // en ClientResponse se llama phoneNumber
         phone: dataModal.phoneNumber ?? dataModal.phone ?? "",
       })
     }
@@ -67,16 +68,18 @@ export default function ModalEditClients() {
       return
     }
 
-    // ✅ usamos documentNumber porque ClientResponse no tiene id
+    // ✅ usamos documentNumber porque no tienes id en ClientResponse
     mutate({
       documentNumber: dataModal.documentNumber,
       data,
     })
-    // useEditClient se encarga del toast y cerrar el modal en onSuccess
   }
 
   const submitForm = form.handleSubmit(handleSubmit)
-  const editableTabs = clientTabs.filter((tab) => tab.id === "misDatos")
+
+  // 🔹 Por ahora solo editamos la pestaña "Mis Datos"
+  const editableTabs = clientTabs
+
 
   if (!dataModal) return null
 

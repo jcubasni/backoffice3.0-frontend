@@ -1,4 +1,3 @@
-// src/app/accounts/schemas/edit-client.schema.ts
 import { z } from "zod"
 
 // Helper para strings opcionales que convierte "" a undefined

@@ -98,13 +98,6 @@ export function useGetAccountByDocumentNumber(
 
 /**
  * 🟢 useEditClient (MODO MAQUETA)
- * - Identifica al cliente por `documentNumber` (no tienes id).
- * - Actualiza SOLO el cache de ["clients"].
- * - Muestra toast y cierra modal.
- *
- * Cuando tengas endpoint real:
- *  - Podrás cambiar mutationFn para llamar a editClient(...)
- *  - Y si backend te da id, adaptas el identificador.
  */
 export function useEditClient() {
   const queryClient = useQueryClient()
@@ -116,35 +109,41 @@ export function useEditClient() {
       documentNumber,
       data,
     }: {
-      documentNumber: string
+      documentNumber: string | number
       data: EditClientSchema
     }) => ({ documentNumber, data }),
 
     async onMutate({ documentNumber, data }) {
       await queryClient.cancelQueries({ queryKey: CLIENTS_QUERY_KEY })
 
-      const previous = queryClient.getQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY)
+      const previous =
+        queryClient.getQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY)
 
-      // 🟡 Actualización optimista en cache
-      queryClient.setQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY, (old) =>
-        (old ?? []).map((client) => {
-          if (client.documentNumber !== documentNumber) return client
+      queryClient.setQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY, (old) => {
+        if (!old) return old
 
+        const targetDoc = String(documentNumber)
+
+        return old.map((client) => {
+          const clientDoc = String(client.documentNumber)
+
+          if (clientDoc !== targetDoc) return client
+
+          // 👇 Aquí SÍ actualizamos el cliente correspondiente
           return {
             ...client,
             firstName: data.firstName ?? client.firstName,
             lastName: data.lastName ?? client.lastName,
-            // estos campos no estaban en ClientResponse,
-            // pero si tu backend los devuelve luego, aquí los respetarías
             address: (data as any).address ?? (client as any).address,
-            department: (data as any).department ?? (client as any).department,
+            department:
+              (data as any).department ?? (client as any).department,
             province: (data as any).province ?? (client as any).province,
             district: (data as any).district ?? (client as any).district,
             email: data.email ?? client.email,
             phoneNumber: data.phone ?? client.phoneNumber,
           }
-        }),
-      )
+        })
+      })
 
       return { previous }
     },

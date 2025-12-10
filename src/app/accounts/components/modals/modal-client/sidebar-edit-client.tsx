@@ -25,7 +25,8 @@ export function SidebarEditClient({
       "No registrado"
     : "No registrado"
 
-  const phone = dataModal?.phone || "No registrado"
+  const phone =
+    dataModal?.phoneNumber ?? dataModal?.phone ?? "No registrado"
   const email = dataModal?.email || "No registrado"
   const address = dataModal?.address || "No registrada"
 
@@ -33,11 +34,13 @@ export function SidebarEditClient({
   const photoUrl = (dataModal as any)?.photoUrl ?? null
 
   return (
-    <aside className="
+    <aside
+      className="
       hidden lg:flex w-64 flex-col 
       border-r border-border bg-sidebar/60 rounded-l-md 
       p-6 gap-6
-    ">
+    "
+    >
       {/* FOTO DEL CLIENTE */}
       <section>
         <h3 className="text-sm font-semibold text-sidebar-foreground mb-3">
@@ -98,7 +101,7 @@ export function SidebarEditClient({
             icon={<Phone className="h-4 w-4 text-green-500" />}
             label="Teléfono"
             value={phone}
-          />    
+          />
 
           {/* Correo */}
           <InfoItem
