@@ -6,17 +6,31 @@ import { PdfShortageOverageReport } from "@/app/pdf/components/pdf-shortage-over
 import Panel from "@/shared/components/ui/panel"
 import { usePanelStore } from "@/shared/store/panel.store"
 import { useGetShortageOverage } from "../../hooks/useDetailBoxesService"
-import type { ShortageOverageData } from "@/app/pdf/types/shortage-overage-report.types"
-import { ShortageOverageParams } from "../../types/detail-boxes.type"
+import type {
+  ShortageOverageData,
+} from "@/app/pdf/types/shortage-overage-report.types"
+import type {
+  ShortageOverageParams,
+  ShortageOverageResponse,
+} from "../../types/detail-boxes.type"
 import { PulseLoader } from "react-spinners"
 import { Colors } from "@/shared/types/constans"
+
+const PANEL_ID = "shortage-overage-report"
+
+// Función segura para cortar fechas tipo "2025-12-10T10:00:00"
+const normalizeDate = (value?: string | null): string => {
+  if (!value) return ""
+  const [date] = String(value).split("T")
+  return date
+}
 
 export const PanelShortageOverageReport = () => {
   const [pdfData, setPdfData] = useState<ShortageOverageData | null>(null)
   const [mode, setMode] = useState<"cashRegister" | "user">("cashRegister")
 
   const panelData = usePanelStore((state) =>
-    state.openPanels.find((panel) => panel.id === "shortage-overage-report"),
+    state.openPanels.find((panel) => panel.id === PANEL_ID),
   )?.prop as ShortageOverageParams | undefined
 
   const cashRegisters = panelData?.cashRegisters ?? []
@@ -27,72 +41,78 @@ export const PanelShortageOverageReport = () => {
   })
 
   useEffect(() => {
-    if (report.data && Array.isArray(report.data)) {
-      const turnsMap: Record<string, any> = {}
+    // Si no hay data o viene algo raro, limpiamos el PDF
+    if (!report.data || !Array.isArray(report.data)) {
+      setPdfData(null)
+      return
+    }
 
-      report.data.forEach((row: any) => {
-        if (!turnsMap[row.shiftName]) {
-          turnsMap[row.shiftName] = {
-            name: row.shiftName,
-            date: row.processDate.split("T")[0],
-            boxes: [],
-          }
+    const rows = report.data as ShortageOverageResponse[]
+    const turnsMap: Record<string, ShortageOverageData["turns"][number]> = {}
+
+    rows.forEach((row) => {
+      const shiftName = row.shiftName ?? "SIN TURNO"
+      const processDate = normalizeDate(row.processDate)
+
+      if (!turnsMap[shiftName]) {
+        turnsMap[shiftName] = {
+          name: shiftName,
+          date: processDate,
+          boxes: [],
         }
-
-        // === CAMBIO PEDIDO: estructura diferente para usuario ===
-      if (mode === "user") {
-            turnsMap[row.shiftName].boxes.push({
-              registerCode: row.cashRegisterCode.toString(),
-              shiftName: row.shiftName,
-              userName: row.cashierName,
-
-              deposit: {
-                cash: Number(row.depositCash),
-                card: Number(row.depositCard),
-              },
-              sales: {
-                cash: Number(row.salesCash),
-                card: Number(row.salesCard),
-              },
-              balance: Number(row.shortageOverage),
-            })
-          }
-          else {
-          // === MODO ORIGINAL (NO CAMBIA NADA) ===
-          turnsMap[row.shiftName].boxes.push({
-            code: row.cashRegisterCode.toString(),
-            responsible: row.cashierName,
-            deposit: {
-              cash: Number(row.depositCash),
-              card: Number(row.depositCard),
-            },
-            sales: {
-              cash: Number(row.salesCash),
-              card: Number(row.salesCard),
-            },
-            balance: Number(row.shortageOverage),
-          })
-        }
-      })
-
-      const formattedData: ShortageOverageData = {
-        company: "JADAL GLOBAL SERVICES S.A.C",
-        ruc: "20611173432",
-        address: "PASEO DE LA REPÚBLICA #314",
-        startDate: panelData?.startDate ? panelData.startDate.split("T")[0] : "",
-        endDate: panelData?.endDate ? panelData.endDate.split("T")[0] : "",
-        mode,
-        turns: Object.values(turnsMap),
       }
 
-      setPdfData(formattedData)
+      if (mode === "user") {
+        // Quiebre por usuario
+        turnsMap[shiftName].boxes.push({
+          registerCode: row.cashRegisterCode?.toString() ?? "",
+          shiftName,
+          userName: row.cashierName ?? "-",
+          deposit: {
+            cash: Number(row.depositCash ?? 0),
+            card: Number(row.depositCard ?? 0),
+          },
+          sales: {
+            cash: Number(row.salesCash ?? 0),
+            card: Number(row.salesCard ?? 0),
+          },
+          balance: Number(row.shortageOverage ?? 0),
+        })
+      } else {
+        // Quiebre por caja (modo original)
+        turnsMap[shiftName].boxes.push({
+          code: row.cashRegisterCode?.toString() ?? "",
+          responsible: row.cashierName ?? "-",
+          deposit: {
+            cash: Number(row.depositCash ?? 0),
+            card: Number(row.depositCard ?? 0),
+          },
+          sales: {
+            cash: Number(row.salesCash ?? 0),
+            card: Number(row.salesCard ?? 0),
+          },
+          balance: Number(row.shortageOverage ?? 0),
+        })
+      }
+    })
+
+    const formattedData: ShortageOverageData = {
+      company: "JADAL GLOBAL SERVICES S.A.C",
+      ruc: "20611173432",
+      address: "PASEO DE LA REPÚBLICA #314",
+      startDate: normalizeDate(panelData?.startDate),
+      endDate: normalizeDate(panelData?.endDate),
+      mode,
+      turns: Object.values(turnsMap),
     }
-  }, [report.data, mode])
+
+    setPdfData(formattedData)
+  }, [report.data, mode, panelData?.startDate, panelData?.endDate])
 
   if (!panelData) {
     return (
       <Panel
-        panelId="shortage-overage-report"
+        panelId={PANEL_ID}
         title="Reporte de Faltante y Sobrante"
         className="h-[90vh]"
         direction="bottom"
@@ -106,12 +126,12 @@ export const PanelShortageOverageReport = () => {
 
   return (
     <Panel
-      panelId="shortage-overage-report"
+      panelId={PANEL_ID}
       title="Reporte de Faltante y Sobrante"
       className="h-[90vh]"
       direction="bottom"
     >
-      {/* === Selector de modo === */}
+      {/* Selector de modo */}
       <div className="flex items-center justify-end gap-3 p-2 border-b bg-gray-50">
         <button
           onClick={() =>
@@ -119,17 +139,14 @@ export const PanelShortageOverageReport = () => {
               prev === "cashRegister" ? "user" : "cashRegister",
             )
           }
-          className="
-            rounded-lg px-3 py-1 text-white text-sm transition
-            hover:opacity-90
-          "
+          className="rounded-lg px-3 py-1 text-white text-sm transition hover:opacity-90"
           style={{ backgroundColor: Colors.reportBlue }}
         >
           {mode === "cashRegister" ? "Quiebre por Usuario" : "Quiebre por Turno"}
         </button>
       </div>
 
-      {/* === Contenido principal === */}
+      {/* Contenido principal */}
       <div className="flex h-full items-center justify-center">
         {report.isLoading && (
           <div className="h-full w-full flex items-center justify-center">

@@ -31,7 +31,7 @@ export const LiquidationReport = ({ data }: Props) => {
       <View style={s.page}>
         {/* === CABECERA === */}
         <View style={s.headerContainer}>
-          <Text style={cx(s.headerTitle, { fontSize: 12 })}>SUCURSAL</Text>
+          <Text style={cx(s.headerTitle, { fontSize: 12 })}>SUC URSAL</Text>
           <Text style={cx(s.headerText, { marginTop: 3 })}>
             {data.header[0].label}
           </Text>
