@@ -14,7 +14,7 @@ import { toCapitalize } from "@/shared/lib/words"
 
 export interface DropdownOption {
   id: string
-  label: string
+  label: string | JSX.Element   // 👈 ahora puede ser string o JSX
   onSelect?: () => void
   children?: DropdownOption[]
   type?: "item" | "checkbox"
@@ -30,13 +30,18 @@ export interface DropdownProps {
 export function Dropdown({ mainLabel, options }: DropdownProps) {
   if (!options || options.length === 0) return null
 
+  const renderLabel = (label: DropdownOption["label"]) =>
+    typeof label === "string" ? toCapitalize(label) : label
+
   const renderOptions = (opts: DropdownOption[]) =>
     opts.map((option) => {
+      const content = renderLabel(option.label)
+
       if (option.children && option.children.length > 0) {
         return (
           <DropdownMenuSub key={option.id}>
             <DropdownMenuSubTrigger>
-              {toCapitalize(option.label)}
+              {content}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent sideOffset={4}>
               {renderOptions(option.children)}
@@ -53,24 +58,21 @@ export function Dropdown({ mainLabel, options }: DropdownProps) {
             onCheckedChange={option.onCheckedChange}
             className="capitalize"
           >
-            {toCapitalize(option.label)}
+            {content}
           </DropdownMenuCheckboxItem>
         )
       }
 
       return (
         <DropdownMenuItem key={option.id} onSelect={option.onSelect}>
-          {toCapitalize(option.label)}
+          {content}
         </DropdownMenuItem>
       )
     })
 
   const shouldRenderChevron = typeof mainLabel === "string"
-  const renderMainLabel = shouldRenderChevron ? (
-    toCapitalize(mainLabel)
-  ) : (
-    <span>{mainLabel}</span>
-  )
+  const renderMainLabel =
+    typeof mainLabel === "string" ? toCapitalize(mainLabel) : mainLabel
 
   return (
     <DropdownMenu>

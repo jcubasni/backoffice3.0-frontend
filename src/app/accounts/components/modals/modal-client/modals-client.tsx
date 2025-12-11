@@ -26,6 +26,12 @@ const modals = [
     modalId: Modals.UPDATE_BALANCE,
     component: () => import("./modal-assign-balance"),
   },
+
+  // 👇 NUEVO MODAL PDF CLIENTES
+  {
+    modalId: "modal-preview-clients-pdf",
+    component: () => import("./modal-preview-clients-pdf"),
+  },
 ]
 
 export const ModalsClient = () => {

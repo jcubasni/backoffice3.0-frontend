@@ -1,25 +1,24 @@
-import { useNavigate } from "@tanstack/react-router";
-import { ColumnDef } from "@tanstack/react-table";
-import { ChevronDown, Edit } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
-import { cn } from "@/lib/utils";
-import { TooltipButton } from "@/shared/components/ui/tooltip-button";
-import { useModalStore } from "@/shared/store/modal.store";
+import { ColumnDef } from "@tanstack/react-table"
+import { ArrowUpDown, ChevronDown, Edit } from "lucide-react"
 
-import { ClientResponse } from "../types/client.type";
-import { Modals } from "../types/modals-name";
+import { Button } from "@/components/ui/button"
+import { Switch } from "@/components/ui/switch"
+import { cn } from "@/lib/utils"
+import { TooltipButton } from "@/shared/components/ui/tooltip-button"
+import { useModalStore } from "@/shared/store/modal.store"
+
+import type { ClientResponse } from "../types/client.type"
+import { Modals } from "../types/modals-name"
 
 export const clientsColumns: ColumnDef<ClientResponse>[] = [
-
   // 🔽 EXPANDER (NO OCULTABLE)
   {
     id: "expander",
     size: 20,
     header: " ",
-    enableHiding: false,
+    enableHiding: false,  
     cell: ({ row }) => {
-      const hasAccounts = row.original.accounts?.length > 0;
+      const hasAccounts = row.original.accounts?.length > 0
 
       return hasAccounts && row.getCanExpand() ? (
         <Button
@@ -30,91 +29,146 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
           <ChevronDown
             className={cn(
               "h-4 w-4 transition-transform",
-              row.getIsExpanded() && "rotate-180"
+              row.getIsExpanded() && "rotate-180",
             )}
           />
         </Button>
-      ) : null;
+      ) : null
     },
   },
 
-  // 📌 1 — Tipo documento
+  // 📌 Tipo documento
   {
-    header: "Tipo documento",
-    accessorKey: "documentType.name",
+    id: "documentType",
+    accessorFn: (row) => row.documentType?.name ?? "",
+    header: ({ column }) => (
+      <button
+        type="button"
+        className="flex w-full items-center justify-center gap-1 font-semibold"
+        onClick={() =>
+          column.toggleSorting(column.getIsSorted() === "asc")
+        }
+      >
+        <span>Tipo documento</span>
+        <ArrowUpDown className="h-3 w-3" />
+      </button>
+    ),
+    cell: ({ row }) => row.original.documentType?.name ?? "-",
+    enableSorting: true,
+    enableHiding: false,
   },
 
-  // 📌 2 — Número documento
+  // 📌 N° documento
   {
-    header: "N° documento",
+    id: "documentNumber",
     accessorKey: "documentNumber",
+    header: ({ column }) => (
+      <button
+        type="button"
+        className="flex w-full items-center justify-center gap-1 font-semibold"
+        onClick={() =>
+          column.toggleSorting(column.getIsSorted() === "asc")
+        }
+      >
+        <span>N° documento</span>
+        <ArrowUpDown className="h-3 w-3" />
+      </button>
+    ),
+    enableSorting: true,
+    enableHiding: false,
   },
 
-  // 📌 3 — Cliente
+  // 📌 Cliente
   {
-    header: "Cliente",
+    id: "clientName",
     accessorFn: (row) =>
       `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim(),
+    header: ({ column }) => (
+      <button
+        type="button"
+        className="flex w-full items-center justify-center gap-1 font-semibold"
+        onClick={() =>
+          column.toggleSorting(column.getIsSorted() === "asc")
+        }
+      >
+        <span>Cliente</span>
+        <ArrowUpDown className="h-3 w-3" />
+      </button>
+    ),
     cell: ({ row }) => (
       <p className="mx-auto max-w-120 truncate text-ellipsis">
         {row.original.firstName?.toUpperCase()}{" "}
         {row.original.lastName?.toUpperCase()}
       </p>
     ),
+    enableSorting: true,
+    enableHiding: false,
   },
 
+  // 📌 Teléfono
   {
+    id: "phoneNumber",
     header: "Teléfono",
     accessorKey: "phoneNumber",
   },
 
+  // 📌 Correo
   {
+    id: "email",
     header: "Correo",
     accessorKey: "email",
   },
 
+  // 📌 Dirección
   {
+    id: "address",
     header: "Dirección",
     accessorKey: "address",
     enableHiding: true,
   },
 
   {
+    id: "department",
     header: "Departamento",
     accessorKey: "department",
     enableHiding: true,
   },
 
   {
+    id: "province",
     header: "Provincia",
     accessorKey: "province",
     enableHiding: true,
   },
 
   {
+    id: "district",
     header: "Distrito",
     accessorKey: "district",
     enableHiding: true,
   },
+
   // 📌 Estado cuenta
   {
+    id: "accountStatus",
     header: "Bloquear cuenta",
     enableHiding: false,
     cell: ({ row }) => {
-      if (!row.original.accounts?.length) return null;
+      if (!row.original.accounts?.length) return null
 
-      const state = row.original.accounts[0]?.status;
-      return <Switch defaultChecked={state} />;
+      const state = row.original.accounts[0]?.status
+      return <Switch defaultChecked={state} />
     },
   },
-  // ACTIONS
+
+  // 📌 Acciones
   {
     id: "actions",
     header: "Acciones",
-    enableHiding: false, // ❗ Nunca ocultar
+    enableHiding: false,
     cell: ({ row }) => {
-      const openModal = useModalStore.getState().openModal;
-      const client = row.original;
+      const openModal = useModalStore.getState().openModal
+      const client = row.original
 
       return (
         <TooltipButton.Box>
@@ -124,7 +178,7 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
             icon={Edit}
           />
         </TooltipButton.Box>
-      );
+      )
     },
   },
-];
+]

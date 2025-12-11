@@ -61,13 +61,15 @@ function RouteComponent() {
 
   // --------------- CREAR TABLA -------------------------
   const table = useDataTable({
-    data: filteredClients,
-    columns: clientsColumns,
-    enableColumnVisibility: true,
-    enableFilters: true,
-    getRowCanExpand: () => true,
-    isLoading,
-  })
+  data: filteredClients,
+  columns: clientsColumns,
+  enableColumnVisibility: true,
+  enableFilters: true,
+  enableSorting: true,        // 👈 ACTIVA EL ORDENAMIENTO
+  getRowCanExpand: () => true,
+  isLoading,
+})
+  
 
   // --------------- RESTAURAR COLUMNAS GUARDADAS ----------------
   useEffect(() => {
@@ -151,12 +153,18 @@ function RouteComponent() {
               transition-colors
             "
             onClick={() =>
-              generateClientsPDF(mapClientsToExport(filteredClients))
+              useModalStore
+                .getState()
+                .openModal("modal-preview-clients-pdf", {
+                  clients: mapClientsToExport(filteredClients),
+                  columnVisibility: table.getState().columnVisibility,
+                })
             }
           >
             <FileText className="mr-2 h-4 w-4" />
             Ver PDF
           </Button>
+
 
           {/* Nuevo */}
           <Button

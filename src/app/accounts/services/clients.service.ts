@@ -82,6 +82,7 @@ export const getAccountByDocumentNumber = async (
   })
   return response
 }
+//PUT no esta en el backend, solo es para simular editar un cliente
 export const editClient = async (
   clientId: string,
   data: Record<string, any>,
