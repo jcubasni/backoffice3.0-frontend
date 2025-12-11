@@ -2,8 +2,8 @@ import { InstallmentResponse } from "@/app/billing-notes/types/notes.type"
 import { StateAudit } from "@/shared/types/state.type"
 
 export enum DocumentState {
-  ACTIVO = 1,
-  ANULADO = 2,
+  ACTIVO = 40001,
+  ANULADO = 40002,
 }
 
 export type DocumentParams = {

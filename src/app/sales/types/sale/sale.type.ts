@@ -28,7 +28,7 @@ export type SaleResponse = {
   documentOperationType: DocumentOperationTypeResponse
   saleOperationType: SaleOperationTypeResponse
   user: UserResponse
-  state?: 1 | 0
+  state?: number
 }
 
 type DocumentOperationTypeResponse = {
