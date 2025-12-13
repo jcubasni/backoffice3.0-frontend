@@ -7,7 +7,10 @@ import { useEffect, useState } from "react"
 import { useForm } from "react-hook-form"
 
 import { SidebarEditClient } from "./sidebar-edit-client"
+import { ClientEditInfo } from "./client-edit-info"
+import { ClientAccountsEdit } from "./client-accounts-edit"
 import { clientTabs } from "@/app/accounts/lib/client-tabs"
+
 import {
   EditClientSchema,
   editClientSchema,
@@ -24,6 +27,7 @@ import { useModalStore } from "@/shared/store/modal.store"
 export default function ModalEditClients() {
   const [activeTab, setActiveTab] = useState("misDatos")
 
+  // 👉 dataModal ahora DEBE tener el id del cliente
   const dataModal = useModalStore((state) =>
     state.openModals.find((modal) => modal.id === Modals.EDIT_CLIENT),
   )?.prop as any | undefined
@@ -51,42 +55,70 @@ export default function ModalEditClients() {
       form.reset({
         firstName: dataModal.firstName ?? "",
         lastName: dataModal.lastName ?? "",
+        // Estos campos vienen mapeados desde la tabla (por ahora maquetados)
         address: dataModal.address ?? "",
         department: dataModal.department ?? "",
         province: dataModal.province ?? "",
         district: dataModal.district ?? "",
         email: dataModal.email ?? "",
-        // en ClientResponse se llama phoneNumber
+        // en el backend es phoneNumber
         phone: dataModal.phoneNumber ?? dataModal.phone ?? "",
       })
     }
   }, [dataModal, form])
 
+  // 🔐 Si aún no hay data, no mostramos nada
+  if (!dataModal) {
+    return null
+  }
+
   const handleSubmit = (data: EditClientSchema) => {
-    if (!dataModal?.documentNumber) {
-      console.error("Client documentNumber not found")
+    if (!dataModal?.id) {
+      console.error("Client id not found in modal data")
       return
     }
 
-    // ✅ usamos documentNumber porque no tienes id en ClientResponse
+    // 👇 Body que espera PATCH /clients/:id (por ahora sin ubigeo)
+    const payload = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      address: data.address,
+      email: data.email,
+      phone: data.phone,
+      // districtId lo añadiremos cuando implementemos el flujo de ubigeo
+    }
+
     mutate({
-      documentNumber: dataModal.documentNumber,
-      data,
+      clientId: dataModal.id,
+      data: payload,
     })
   }
 
   const submitForm = form.handleSubmit(handleSubmit)
 
-  // 🔹 Por ahora solo editamos la pestaña "Mis Datos"
-  const editableTabs = clientTabs
+  // Tabs con componentes específicos para editar
+  const editableTabs = clientTabs.map((tab) => {
+    if (tab.id === "misDatos") {
+      return {
+        ...tab,
+        component: <ClientEditInfo client={dataModal} />,
+      }
+    }
 
+    if (tab.id === "cuentas") {
+      return {
+        ...tab,
+        component: <ClientAccountsEdit clientId={dataModal.id} />,
+      }
+    }
 
-  if (!dataModal) return null
+    return tab
+  })
 
   return (
     <Modal
       modalId={Modals.EDIT_CLIENT}
-      className="h-screen w-screen p-1 max-lg:max-h-screen md:max-w-3xl lg:h-[85vh] lg:w-fit"
+      className="h-screen! w-screen! p-1 max-lg:max-h-screen! md:max-w-5xl! lg:h-[85vh]! lg:w-fit xl:max-w-7xl!"
       scrollable
     >
       <FormWrapper
@@ -99,7 +131,11 @@ export default function ModalEditClients() {
 
         {/* CONTENIDO */}
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 w-full">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="flex-1 w-full"
+          >
             <TabsList className="mx-auto mb-6 h-auto w-fit gap-1.5 rounded-xl p-1 md:gap-4">
               {editableTabs.map((tab) => {
                 const isActive = activeTab === tab.id
@@ -136,7 +172,11 @@ export default function ModalEditClients() {
             </TabsList>
 
             {editableTabs.map((tab) => (
-              <TabsContent key={tab.id} value={tab.id} className="flex-1 space-y-4 px-2">
+              <TabsContent
+                key={tab.id}
+                value={tab.id}
+                className="flex-1 space-y-4 px-2"
+              >
                 {tab.component || (
                   <div className="flex h-full items-center justify-center text-slate-500">
                     Contenido no disponible

@@ -10,15 +10,23 @@ import { useModalStore } from "@/shared/store/modal.store"
 import type { ClientResponse } from "../types/client.type"
 import { Modals } from "../types/modals-name"
 
+/**
+ * 🧩 Helper: obtiene la dirección principal (addresses[0] o la que tenga isPrimary)
+ */
+const getPrimaryAddress = (client: ClientResponse) => {
+  if (!client.addresses || client.addresses.length === 0) return undefined
+  return client.addresses.find((addr) => addr.isPrimary) ?? client.addresses[0]
+}
+
 export const clientsColumns: ColumnDef<ClientResponse>[] = [
   // 🔽 EXPANDER (NO OCULTABLE)
   {
     id: "expander",
     size: 20,
     header: " ",
-    enableHiding: false,  
+    enableHiding: false,
     cell: ({ row }) => {
-      const hasAccounts = row.original.accounts?.length > 0
+      const hasAccounts = (row.original as any).accounts?.length > 0
 
       return hasAccounts && row.getCanExpand() ? (
         <Button
@@ -119,44 +127,63 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
     accessorKey: "email",
   },
 
-  // 📌 Dirección
+  // 📌 Dirección (desde addresses[0].addressLine1)
   {
     id: "address",
     header: "Dirección",
-    accessorKey: "address",
+    accessorFn: (row) => {
+      const primary = getPrimaryAddress(row)
+      return primary?.addressLine1 ?? ""
+    },
     enableHiding: true,
   },
 
+  // 📌 Departamento
   {
     id: "department",
     header: "Departamento",
-    accessorKey: "department",
+    accessorFn: (row) => {
+      const primary = getPrimaryAddress(row)
+      return primary?.department ?? ""
+    },
     enableHiding: true,
   },
 
+  // 📌 Provincia
   {
     id: "province",
     header: "Provincia",
-    accessorKey: "province",
+    accessorFn: (row) => {
+      const primary = getPrimaryAddress(row)
+      return primary?.province ?? ""
+    },
     enableHiding: true,
   },
 
+  // 📌 Distrito
   {
     id: "district",
     header: "Distrito",
-    accessorKey: "district",
+    accessorFn: (row) => {
+      const primary = getPrimaryAddress(row)
+      return primary?.district ?? ""
+    },
     enableHiding: true,
   },
 
-  // 📌 Estado cuenta
+  // 📌 Estado cuenta (por ahora puede venir vacío si el backend no lo manda)
   {
     id: "accountStatus",
     header: "Bloquear cuenta",
     enableHiding: false,
     cell: ({ row }) => {
-      if (!row.original.accounts?.length) return null
+      const accounts = (row.original as any).accounts as
+        | { status: boolean }[]
+        | undefined
 
-      const state = row.original.accounts[0]?.status
+      if (!accounts?.length) return null
+
+      const state = accounts[0]?.status
       return <Switch defaultChecked={state} />
     },
   },
@@ -169,12 +196,24 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
     cell: ({ row }) => {
       const openModal = useModalStore.getState().openModal
       const client = row.original
+      const primary = getPrimaryAddress(client)
+
+      // 👇 Payload que le mandamos al modal de edición
+      const clientForModal = {
+        ...client,
+        address: primary?.addressLine1 ?? "",
+        department: primary?.department ?? "",
+        province: primary?.province ?? "",
+        district: primary?.district ?? "",
+        // dejamos listo para ubigeo más adelante
+        districtId: (primary as any)?.districtId ?? undefined,
+      }
 
       return (
         <TooltipButton.Box>
           <TooltipButton
             tooltip="Editar"
-            onClick={() => openModal(Modals.EDIT_CLIENT, client)}
+            onClick={() => openModal(Modals.EDIT_CLIENT, clientForModal)}
             icon={Edit}
           />
         </TooltipButton.Box>

@@ -1,34 +1,72 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
+
 import { useModalStore } from "@/shared/store/modal.store"
+
 import {
   addClient,
-  // editClient, // 👈 lo dejaremos comentado hasta que exista el endpoint real
+  createAccount,
   getAccountByClientId,
   getAccountByDocumentNumber,
+  getAccountTypes,
+  getClientById,
   getClients,
   getProductsByAccount,
   searchClientBySaleDocument,
+  updateAccount,
+  updateClient,
   updateProductsByClient,
 } from "../services/clients.service"
+
 import {
+  AccountCreateDTO,
+  AccountTypeResponse,
+  AccountUpdateDTO,
   ClientDTO,
   ClientResponse,
+  ClientUpdateDTO,
   SearchClientParams,
   UpdateProductsParams,
 } from "../types/client.type"
 import { Modals } from "../types/modals-name"
-import { EditClientSchema } from "../schemas/edit-client.schema"
 
 const CLIENTS_QUERY_KEY = ["clients"] as const
+const ACCOUNT_TYPES_QUERY_KEY = ["account-types"] as const
 
+/* -------------------------------------------
+ * 🟢 LISTAR CLIENTES
+ * ---------------------------------------- */
 export function useGetClients() {
-  return useQuery({
+  return useQuery<ClientResponse[]>({
     queryKey: CLIENTS_QUERY_KEY,
     queryFn: getClients,
   })
 }
 
+/* -------------------------------------------
+ * 🟢 LISTAR TIPOS DE CUENTA (GET /accounts/types)
+ * ---------------------------------------- */
+export function useGetAccountTypes() {
+  return useQuery<AccountTypeResponse[]>({
+    queryKey: ACCOUNT_TYPES_QUERY_KEY,
+    queryFn: getAccountTypes,
+  })
+}
+
+/* -------------------------------------------
+ * 🟢 OBTENER CLIENTE POR ID (para Mis Datos)
+ * ---------------------------------------- */
+export function useGetClientById(clientId?: string) {
+  return useQuery<ClientResponse>({
+    queryKey: ["client", clientId],
+    queryFn: () => getClientById(clientId!),
+    enabled: !!clientId,
+  })
+}
+
+/* -------------------------------------------
+ * 🟢 CREAR CLIENTE
+ * ---------------------------------------- */
 export function useAddClient() {
   const queryClient = useQueryClient()
 
@@ -46,6 +84,9 @@ export function useAddClient() {
   })
 }
 
+/* -------------------------------------------
+ * 🟢 BUSCAR CLIENTE PARA VENTA
+ * ---------------------------------------- */
 export function useSearchClientBySaleDocument(params: SearchClientParams) {
   return useQuery({
     queryKey: ["search-client", "by-sale-document", params],
@@ -54,6 +95,9 @@ export function useSearchClientBySaleDocument(params: SearchClientParams) {
   })
 }
 
+/* -------------------------------------------
+ * 🟢 PRODUCTOS POR CUENTA
+ * ---------------------------------------- */
 export function useGetProductsByAccount(accountId?: string) {
   return useQuery({
     queryKey: ["products", "by-client", accountId],
@@ -62,6 +106,9 @@ export function useGetProductsByAccount(accountId?: string) {
   })
 }
 
+/* -------------------------------------------
+ * 🟢 ACTUALIZAR PRODUCTOS DE UNA CUENTA
+ * ---------------------------------------- */
 export function useUpdateProductsByClient() {
   return useMutation({
     mutationKey: ["update-products", "by-client"],
@@ -77,14 +124,80 @@ export function useUpdateProductsByClient() {
   })
 }
 
-export function useGetAccountByClientId(clientId?: string, isCredit?: boolean) {
+/* -------------------------------------------
+ * 🟢 CUENTAS POR CLIENTE
+ * ---------------------------------------- */
+export function useGetAccountByClientId(clientId?: string) {
   return useQuery({
-    queryKey: ["account", "by-client-id", clientId],
+    queryKey: ["accounts", "by-client", clientId],
     queryFn: () => getAccountByClientId(clientId!),
-    enabled: !!clientId && isCredit,
+    enabled: !!clientId,
   })
 }
 
+/* -------------------------------------------
+ * 🟢 CREAR CUENTA PARA UN CLIENTE
+ * ---------------------------------------- */
+export function useCreateAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: ["create-account"],
+    mutationFn: (body: AccountCreateDTO) => createAccount(body),
+    onSuccess(_data, variables) {
+      const clientId = variables.clientId
+      toast.success("Cuenta creada correctamente")
+
+      if (clientId) {
+        queryClient.invalidateQueries({
+          queryKey: ["accounts", "by-client", clientId],
+        })
+      }
+    },
+    onError() {
+      toast.error("No se pudo crear la cuenta")
+    },
+  })
+}
+
+/* -------------------------------------------
+ * 🟢 EDITAR CUENTA (PATCH /accounts/:id)
+ * ---------------------------------------- */
+export function useUpdateAccount() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: ["update-account"],
+    mutationFn: ({
+      accountId,
+      clientId,
+      data,
+    }: {
+      accountId: string
+      clientId: string
+      data: AccountUpdateDTO
+    }) => updateAccount(accountId, data),
+
+    onSuccess(_data, variables) {
+      const { clientId } = variables
+      toast.success("Cuenta actualizada correctamente")
+
+      if (clientId) {
+        queryClient.invalidateQueries({
+          queryKey: ["accounts", "by-client", clientId],
+        })
+      }
+    },
+
+    onError() {
+      toast.error("No se pudo actualizar la cuenta")
+    },
+  })
+}
+
+/* -------------------------------------------
+ * 🟢 CUENTA POR DOCUMENTO
+ * ---------------------------------------- */
 export function useGetAccountByDocumentNumber(
   documentNumber?: string,
   documentTypeId?: number,
@@ -96,67 +209,84 @@ export function useGetAccountByDocumentNumber(
   })
 }
 
-/**
- * 🟢 useEditClient (MODO MAQUETA)
- */
+/* -------------------------------------------
+ * 🟢 EDITAR CLIENTE (PATCH /clients/:id)
+ *    + actualización optimista de la tabla
+ * ---------------------------------------- */
 export function useEditClient() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ["edit-client"],
-    // ⛔ Sin llamar a backend todavía
-    mutationFn: async ({
-      documentNumber,
+    mutationFn: ({
+      clientId,
       data,
     }: {
-      documentNumber: string | number
-      data: EditClientSchema
-    }) => ({ documentNumber, data }),
+      clientId: string
+      data: ClientUpdateDTO
+    }) => updateClient(clientId, data),
 
-    async onMutate({ documentNumber, data }) {
+    async onMutate(variables) {
+      const { clientId, data } = variables
+
       await queryClient.cancelQueries({ queryKey: CLIENTS_QUERY_KEY })
 
-      const previous =
+      const previousClients =
         queryClient.getQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY)
 
       queryClient.setQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY, (old) => {
         if (!old) return old
 
-        const targetDoc = String(documentNumber)
-
         return old.map((client) => {
-          const clientDoc = String(client.documentNumber)
+          if (client.id !== clientId) return client
 
-          if (clientDoc !== targetDoc) return client
-
-          // 👇 Aquí SÍ actualizamos el cliente correspondiente
-          return {
+          const updatedClient: ClientResponse = {
             ...client,
             firstName: data.firstName ?? client.firstName,
             lastName: data.lastName ?? client.lastName,
-            address: (data as any).address ?? (client as any).address,
-            department:
-              (data as any).department ?? (client as any).department,
-            province: (data as any).province ?? (client as any).province,
-            district: (data as any).district ?? (client as any).district,
             email: data.email ?? client.email,
             phoneNumber: data.phone ?? client.phoneNumber,
           }
+
+          if (client.addresses && client.addresses.length > 0) {
+            const primary =
+              client.addresses.find((addr) => addr.isPrimary) ??
+              client.addresses[0]
+
+            const updatedPrimary = {
+              ...primary,
+              addressLine1: data.address ?? primary.addressLine1,
+            }
+
+            return {
+              ...updatedClient,
+              addresses: client.addresses.map((addr) =>
+                addr.id === primary.id ? updatedPrimary : addr,
+              ),
+            }
+          }
+
+          return updatedClient
         })
       })
 
-      return { previous }
+      return { previousClients }
     },
 
-    onError(_err, _vars, context) {
-      if (context?.previous) {
-        queryClient.setQueryData(CLIENTS_QUERY_KEY, context.previous)
+    onError(_error, _vars, context) {
+      if (context?.previousClients) {
+        queryClient.setQueryData(CLIENTS_QUERY_KEY, context.previousClients)
       }
-      toast.error("No se pudo actualizar el cliente (modo maqueta)")
+      toast.error("No se pudo actualizar el cliente")
     },
 
-    onSuccess() {
-      toast.success("Cliente actualizado (solo en frontend)")
+    onSuccess(_data, variables) {
+      const { clientId } = variables
+
+      toast.success("Cliente actualizado correctamente")
+      queryClient.invalidateQueries({ queryKey: ["client", clientId] })
+      queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
+
       useModalStore.getState().closeModal(Modals.EDIT_CLIENT)
     },
   })
