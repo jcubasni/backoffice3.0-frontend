@@ -1,223 +1,230 @@
+import { useEffect, useMemo, useState } from "react"
 import { createFileRoute } from "@tanstack/react-router"
-import { BadgePlus, Download, Edit2, FileText, Trash2 } from "lucide-react"
-import { useMemo, useState } from "react"
-import { createColumnHelper, type ColumnDef } from "@tanstack/react-table"
-import { ModalContainer } from "@/shared/components/modals/modal-container"
-import { Modals } from "@/app/accounts/types/modals-name"
-import { useGetClients } from "@/app/accounts/hooks/useClientsService"
-import { Button } from "@/components/ui/button"
+import { BadgePlus, Columns3Cog, Download, FileText } from "lucide-react"
+
+import { Button, buttonVariants } from "@/components/ui/button"
 import { HeaderContent } from "@/shared/components/header-content"
 import { DataTable } from "@/shared/components/ui/data-table"
 import { Input } from "@/shared/components/ui/input"
+import { Dropdown } from "@/shared/components/ui/dropdown"
 import { useDataTable } from "@/shared/hooks/useDataTable"
 import { useDebounce } from "@/shared/hooks/useDebounce"
 import { useSearch } from "@/shared/hooks/useSearch"
 import { useModalStore } from "@/shared/store/modal.store"
-import { TooltipButton } from "@/shared/components/ui/tooltip-button"
+import { getTableColumnOptions } from "@/app/configurations/shared/lib/table-column-options"
+import { cn } from "@/lib/utils"
 
+import {
+  useGetVehicleTypes,
+  useGetVehicles,
+  useDeleteVehicle,
+} from "@/app/vehicles/hooks/useVehiclesService"
+import { vehiclesColumns } from "@/app/vehicles/lib/vehicles-columns"
+import { defaultVehicleColumnsVisibility } from "@/app/vehicles/lib/default-vehicle-columns"
+import type { VehicleResponse } from "@/app/vehicles/types/vehicle.type"
+
+// IDs de los modales (objeto con strings)
+import { ModalsVehicle } from "@/app/vehicles/types/modals-name"
+// Componente que contiene TODOS los modales de vehículos
+import { ModalsVehicleRoot } from "@/app/vehicles/components/modals/modals-vehicle"
+
+const COLUMN_VISIBILITY_STORAGE_KEY = "vehicles-column-visibility"
+
+// -------------------- RUTA --------------------
 export const Route = createFileRoute("/(sidebar)/vehicle/vehicles")({
   component: RouteComponent,
-  staticData: {
-    headerTitle: "Vehículos",
-  },
+  staticData: { headerTitle: "Vehículos" },
 })
 
-type VehicleRow = {
-  licensePlate: string
-  vehicleType: string
-  cardNumber?: string
-  model?: string
-  tankCapacity?: number
-  numberOfWheels?: number
-  initialKilometrage?: number
-  clientName?: string
-  clientDocument?: string
-}
-
+// -------------------- COMPONENTE --------------------
 function RouteComponent() {
   const [search, setSearch] = useDebounce("")
-  const { isLoading, data: clients } = useGetClients()
+  const [selectedType, setSelectedType] = useState<"all" | number>("all")
 
-  // Extraer vehículos desde la respuesta de clients (si existe la propiedad 'vehicles')
-  const initialVehicles = useMemo(() => {
-    if (!clients) return []
-    return clients.flatMap((client) => {
-      // some API responses may not include vehicles — guardamos safe access
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vehs = (client as any).vehicles ?? []
-      return vehs.map((v: any) => ({
-        ...v,
-        clientName: `${client.firstName ?? ""} ${client.lastName ?? ""}`.trim(),
-        clientDocument: client.documentNumber ?? undefined,
-      })) as VehicleRow[]
+  const { data: vehicleTypes } = useGetVehicleTypes()
+  const { data, isLoading } = useGetVehicles()
+  const deleteVehicle = useDeleteVehicle()
+
+  const openModal = useModalStore((state) => state.openModal)
+
+  // ----- MAPA ID → NOMBRE DE TIPO -----
+  const vehicleTypesMap = useMemo(() => {
+    const map: Record<number, string> = {}
+    vehicleTypes?.forEach((t) => {
+      map[t.id] = t.name
     })
-  }, [clients])
+    return map
+  }, [vehicleTypes])
 
-  // Estado local para permitir agregar/editar/eliminar en la UI
-  const [vehicles, setVehicles] = useState<VehicleRow[]>(initialVehicles)
+  // ----- LISTA BASE -----
+  const allVehicles: VehicleResponse[] = data?.rows ?? []
 
-  // Mantener sincronía si la fuente cambia: solo inicializamos cuando cambie la fuente
-  // (evitamos sobrescribir ediciones locales mientras el usuario trabaja)
-  // Si prefieres siempre sobrescribir, podrías usar effect para setVehicles(initialVehicles).
-
-  const filteredVehicles = useSearch(vehicles, search, [
-    "licensePlate",
+  // ----- FILTRO POR BÚSQUEDA -----
+  const searchedVehicles = useSearch(allVehicles, search, [
+    "plate",
+    "brand",
     "model",
-    "clientName",
+    "code",
   ])
 
-  const table = useDataTable({
-    columns: getColumns({ setVehicles }),
+  // ----- FILTRO POR TIPO -----
+  const filteredVehicles = useMemo(
+    () =>
+      selectedType === "all"
+        ? searchedVehicles
+        : searchedVehicles.filter((v) => v.vehicleTypeId === selectedType),
+    [searchedVehicles, selectedType],
+  )
+
+  // ----- COLUMNAS -----
+const columns = useMemo(
+  () =>
+    vehiclesColumns({
+      vehicleTypesMap,
+      onEdit: (vehicle) => {
+        openModal(ModalsVehicle.EDIT_VEHICLE, { vehicle })
+      },
+      onDelete: (vehicle) => {
+        openModal(ModalsVehicle.DELETE_VEHICLE, { vehicle }) // Eliminar el objeto completo
+      },
+    }),
+  [vehicleTypesMap, openModal],
+)
+
+  // ----- TABLA -----
+  const table = useDataTable<VehicleResponse>({
     data: filteredVehicles,
-    isLoading: isLoading,
+    columns,
+    enableColumnVisibility: true,
+    enableFilters: true,
+    enableSorting: true,
+    isLoading,
   })
 
-  const { openModal } = useModalStore()
+  const columnVisibility = table.getState().columnVisibility
 
-  const handleOpenNew = () => {
-    openModal(Modals.ADD_VEHICLE, {
-      addVehicle: (data: VehicleRow) => {
-        setVehicles((prev) => [...prev, data])
-      },
-    } as any)
-  }
+  // ----- RESTAURAR VISIBILIDAD DE COLUMNAS -----
+  useEffect(() => {
+    const saved = localStorage.getItem(COLUMN_VISIBILITY_STORAGE_KEY)
+    const visibility = saved
+      ? JSON.parse(saved)
+      : defaultVehicleColumnsVisibility
 
+    const current = table.getState().columnVisibility
+    const isDifferent =
+      JSON.stringify(current) !== JSON.stringify(visibility)
+
+    if (isDifferent) {
+      table.setColumnVisibility(visibility)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // ----- GUARDAR VISIBILIDAD DE COLUMNAS -----
+  useEffect(() => {
+    localStorage.setItem(
+      COLUMN_VISIBILITY_STORAGE_KEY,
+      JSON.stringify(columnVisibility),
+    )
+  }, [columnVisibility])
+
+  // -------------------- UI --------------------
   return (
     <>
-     <HeaderContent>
+      <HeaderContent>
+        {/* Buscador + filtro tipo */}
+        <HeaderContent.Left>
+          <div className="flex flex-col gap-2">
+            <Input
+              label="Buscar vehículo"
+              placeholder="Placa, modelo, marca…"
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-72 max-w-full"
+            />
+          </div>
 
-  {/* Búsqueda */}
-  <HeaderContent.Left>
-    <Input
-      label="Buscar vehículo"
-      onChange={(e) => setSearch(e.target.value)}
-      className="w-72 max-w-full"
-    />
-  </HeaderContent.Left>
+          <div className="ml-4 flex flex-col gap-2">
+            <span className="text-xs font-medium text-muted-foreground">
+              Filtrar por tipo de vehículo
+            </span>
+            <select
+              className="h-9 rounded-md border bg-background px-3 text-sm"
+              value={selectedType === "all" ? "all" : selectedType}
+              onChange={(e) => {
+                const value = e.target.value
+                setSelectedType(value === "all" ? "all" : Number(value))
+              }}
+            >
+              <option value="all">Todos los vehículos</option>
+              {vehicleTypes?.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </HeaderContent.Left>
 
-  {/* Botones */}
-  <HeaderContent.Right>
+        {/* Botones */}
+        <HeaderContent.Right>
+          {/* Columnas */}
+          <Dropdown
+            mainLabel={
+              <p
+                className={cn(
+                  buttonVariants({
+                    variant: "outline",
+                    size: "header",
+                  }),
+                )}
+              >
+                <Columns3Cog className="mr-2 h-4 w-4" />
+                Columnas
+              </p>
+            }
+            options={getTableColumnOptions(table)}
+          />
 
-    {/* Exportar */}
-    <Button
-      size="header"
-      className="
-        hover:bg-green-800 hover:text-white
-        dark:hover:bg-green-900 dark:hover:text-white
-        transition-colors
-      "
-      onClick={() => {}}
-    >
-      <Download className="mr-2 h-4 w-4" />
-      Exportar
-    </Button>
+          {/* Exportar CSV (por implementar) */}
+          <Button
+            size="header"
+            className="hover:bg-green-800 hover:text-white dark:hover:bg-green-900 dark:hover:text-white transition-colors"
+            onClick={() => {
+              // TODO: exportVehiclesToCSV(mapVehiclesToExport(filteredVehicles))
+            }}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Exportar
+          </Button>
 
-    {/* Ver PDF */}
-    <Button
-      size="header"
-      className="
-        hover:bg-red-700 hover:text-white
-        dark:hover:bg-red-900 dark:hover:text-white
-        transition-colors
-      "
-      onClick={() => {}}
-    >
-      <FileText className="mr-2 h-4 w-4" />
-      Ver PDF
-    </Button>
+          {/* Ver PDF (por implementar) */}
+          <Button
+            size="header"
+            className="hover:bg-red-700 hover:text-white dark:hover:bg-red-900 dark:hover:text-white transition-colors"
+            onClick={() => {
+              // TODO: abrir modal "modal-preview-vehicles-pdf"
+            }}
+          >
+            <FileText className="mr-2 h-4 w-4" />
+            Ver PDF
+          </Button>
 
-    {/* Nuevo */}
-    <Button
-      size="header"
-      onClick={handleOpenNew}
-    >
-      <BadgePlus className="mr-2 h-4 w-4" />
-      Nuevo
-    </Button>
+          {/* Nuevo */}
+          <Button
+            size="header"
+            onClick={() => openModal(ModalsVehicle.ADD_VEHICLE)}
+          >
+            <BadgePlus className="mr-2 h-4 w-4" />
+            Nuevo
+          </Button>
+        </HeaderContent.Right>
+      </HeaderContent>
 
-  </HeaderContent.Right>
-
-</HeaderContent>
-
-
+      {/* Tabla */}
       <DataTable table={table} />
 
-      {/* Modal container para los modales requeridos (solo ADD_VEHICLE usado aquí) */}
-      <ModalContainer
-        modals={[
-          {
-            modalId: Modals.ADD_VEHICLE,
-            component: () =>
-              import(
-                "@/app/accounts/components/modals/modal-client/modal-add-vehicle"
-              ),
-          },
-        ]}
-      />
+      {/* Modales de vehículos */}
+      <ModalsVehicleRoot />
     </>
   )
-}
-
-/* Columnas locales para la tabla de vehículos */
-function getColumns({
-  setVehicles,
-}: {
-  setVehicles: React.Dispatch<React.SetStateAction<VehicleRow[]>>
-}): ColumnDef<VehicleRow>[] {
-  return [
-    {
-      accessorKey: "licensePlate",
-      header: "Placa",
-    },
-    {
-      accessorKey: "vehicleType",
-      header: "Tipo",
-      cell: ({ getValue }) => getValue() ?? "-",
-    },
-    {
-      accessorKey: "cardNumber",
-      header: "Tarjeta",
-      cell: ({ getValue }) => getValue() ?? "-",
-    },
-    {
-      accessorKey: "model",
-      header: "Modelo",
-      cell: ({ getValue }) => getValue() ?? "-",
-    },
-    {
-      accessorKey: "clientName",
-      header: "Cliente",
-      cell: ({ getValue }) => getValue() ?? "-",
-    },
-    {
-      id: "actions",
-      header: "Acciones",
-      cell: ({ row }) => {
-        const index = row.index
-        const rowData = row.original
-        const handleEdit = () => {
-          useModalStore.getState().openModal(Modals.ADD_VEHICLE, {
-            editVehicle: (idx: number, data: VehicleRow) => {
-              setVehicles((prev) => {
-                const copy = [...prev]
-                copy[idx] = data
-                return copy
-              })
-            },
-            index,
-            vehicleData: rowData,
-          } as any)
-        }
-        const handleDelete = () => {
-          setVehicles((prev) => prev.filter((_, i) => i !== index))
-        }
-        return (
-          <TooltipButton.Box>
-            <TooltipButton tooltip="Editar" icon={Edit2} onClick={handleEdit} />
-            <TooltipButton tooltip="Eliminar" icon={Trash2} onClick={handleDelete} />
-          </TooltipButton.Box>
-        )
-      },
-    },
-  ]
 }
