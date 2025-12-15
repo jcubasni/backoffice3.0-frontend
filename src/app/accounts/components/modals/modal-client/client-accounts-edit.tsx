@@ -17,10 +17,22 @@ import { TooltipButton } from "@/shared/components/ui/tooltip-button"
 import { Button } from "@/components/ui/button"
 import { Trash2 } from "lucide-react"
 
-import { useGetAccountByClientId, useUpdateAccount } from "@accounts/hooks/useClientsService"
-import type { AccountResponse, AccountUpdateDTO } from "@accounts/types/client.type"
-import { AccountTypeForClient } from "@accounts/types/client.type"
+import {
+  useGetAccountByClientId,
+  useUpdateAccount,
+} from "@accounts/hooks/useClientsService"
+import type {
+  AccountResponse,
+  AccountUpdateDTO,
+} from "@accounts/types/client.type"
+import {
+  AccountTypeForClient,
+} from "@accounts/types/client.type"
 import { AccountTypeStyles } from "@accounts/types/client.enum"
+
+// 👇 NUEVOS IMPORTS
+import { Modals } from "@accounts/types/modals-name"
+import { useModalStore } from "@/shared/store/modal.store"
 
 type ClientAccountsEditProps = {
   clientId: string
@@ -48,6 +60,9 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   const [editedAccounts, setEditedAccounts] = useState<
     Record<string, EditableFields>
   >({})
+
+  // 👉 hook de modales (lo usamos para abrir "Agregar placa/tarjeta")
+  const { openModal } = useModalStore()
 
   const handleChangeField = (
     accountId: string,
@@ -89,40 +104,39 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   }
 
   const handleSaveAccount = (account: AccountResponse) => {
-  const edited = editedAccounts[account.accountId] || {}
+    const edited = editedAccounts[account.accountId] || {}
 
-  const body: AccountUpdateDTO = {
-    creditLine:
-      edited.creditLine !== undefined
-        ? edited.creditLine
-        : account.creditLine,
-    billingDays:
-      edited.billingDays !== undefined
-        ? edited.billingDays
-        : account.billingDays,
-    creditDays:
-      edited.creditDays !== undefined
-        ? edited.creditDays
-        : account.creditDays,
-    installments:
-      edited.installments !== undefined
-        ? edited.installments
-        : account.installments,
-    startDate:
-      edited.startDate !== undefined
-        ? edited.startDate
-        : account.startDate,
-    endDate:
-      edited.endDate !== undefined ? edited.endDate : account.endDate,
+    const body: AccountUpdateDTO = {
+      creditLine:
+        edited.creditLine !== undefined
+          ? edited.creditLine
+          : account.creditLine,
+      billingDays:
+        edited.billingDays !== undefined
+          ? edited.billingDays
+          : account.billingDays,
+      creditDays:
+        edited.creditDays !== undefined
+          ? edited.creditDays
+          : account.creditDays,
+      installments:
+        edited.installments !== undefined
+          ? edited.installments
+          : account.installments,
+      startDate:
+        edited.startDate !== undefined
+          ? edited.startDate
+          : account.startDate,
+      endDate:
+        edited.endDate !== undefined ? edited.endDate : account.endDate,
+    }
+
+    updateAccount({
+      accountId: account.accountId,
+      clientId,
+      data: body,
+    })
   }
-
-  updateAccount({
-    accountId: account.accountId,
-    clientId,
-    data: body,
-  })
-}
-
 
   const renderAccountCard = (account: AccountResponse) => {
     const typeId = account.type?.id as AccountTypeForClient | undefined
@@ -133,6 +147,11 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
 
     // Para cuentas NO crédito solo mostramos info básica (sin formulario)
     const isCredit = typeId === AccountTypeForClient.CREDIT
+
+    const handleOpenAddPlate = () => {
+      // 👉 Abrir modal para agregar placas/tarjetas para esta cuenta
+      openModal(Modals.ADD_PLATE, account.accountId)
+    }
 
     return (
       <AccordionItem
@@ -161,7 +180,10 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
               icon={Trash2}
               tooltip="Eliminar cuenta"
               onClick={() =>
-                console.log("Eliminar cuenta (futuro DELETE)", account.accountId)
+                console.log(
+                  "Eliminar cuenta (futuro DELETE)",
+                  account.accountId,
+                )
               }
             />
           </div>
@@ -215,18 +237,17 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                     />
                   </div>
 
-                 <div className="space-y-1">
-  <label className="text-sm text-muted-foreground">
-    Saldo
-  </label>
-  <Input
-    type="number"
-    value={account.balance ?? 0}
-    disabled
-    readOnly
-  />
-</div>
-
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Saldo
+                    </label>
+                    <Input
+                      type="number"
+                      value={account.balance ?? 0}
+                      disabled
+                      readOnly
+                    />
+                  </div>
 
                   <div className="space-y-1">
                     <label className="text-sm text-muted-foreground">
@@ -334,40 +355,61 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="mt-4 flex flex-wrap justify-between gap-2">
                   <Button
-                    type="button"                // 👈 IMPORTANTE: NO es "submit"
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenAddPlate}
+                  >
+                    Gestionar tarjetas
+                  </Button>
+
+                  <Button
+                    type="button"
                     onClick={() => handleSaveAccount(account)}
                     disabled={isUpdating}
-                    className="mt-4"
+                    className="mt-1 md:mt-0"
                   >
                     Guardar
                   </Button>
-
                 </div>
               </div>
             ) : (
-              // Para ANTICIPO / CANJE solo mostramos resumen si tiene datos
-              <div className="mt-2 grid gap-x-10 gap-y-1 text-sm md:grid-cols-2 md:text-right">
-                <div className="text-muted-foreground">Línea crédito</div>
-                <div className="font-semibold">
-                  {formatCurrency(account.creditLine || 0, "PEN")}
+              // Para ANTICIPO / CANJE solo mostramos resumen + botón de tarjetas
+              <div className="mt-2 space-y-4">
+                <div className="grid gap-x-10 gap-y-1 text-sm md:grid-cols-2 md:text-right">
+                  <div className="text-muted-foreground">Línea crédito</div>
+                  <div className="font-semibold">
+                    {formatCurrency(account.creditLine || 0, "PEN")}
+                  </div>
+
+                  <div className="text-muted-foreground">Saldo</div>
+                  <div className="font-semibold">
+                    {formatCurrency(account.balance || 0, "PEN")}
+                  </div>
+
+                  {account.startDate && account.endDate && (
+                    <>
+                      <div className="text-muted-foreground">Vigencia</div>
+                      <div className="font-semibold">
+                        {formatDate(account.startDate)} -{" "}
+                        {formatDate(account.endDate)}
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                <div className="text-muted-foreground">Saldo</div>
-                <div className="font-semibold">
-                  {formatCurrency(account.balance || 0, "PEN")}
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenAddPlate}
+                  >
+                    Gestionar tarjetas
+                  </Button>
                 </div>
-
-                {account.startDate && account.endDate && (
-                  <>
-                    <div className="text-muted-foreground">Vigencia</div>
-                    <div className="font-semibold">
-                      {formatDate(account.startDate)} -{" "}
-                      {formatDate(account.endDate)}
-                    </div>
-                  </>
-                )}
               </div>
             )}
           </AccordionContent>

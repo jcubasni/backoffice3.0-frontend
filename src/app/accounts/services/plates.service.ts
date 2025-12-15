@@ -1,3 +1,4 @@
+// plates.service.ts
 import { fetchData } from "@/shared/lib/fetch-data"
 import { AddPlateDTO, CardResponse, EditPlateDTO } from "../types/plate.type"
 
@@ -8,11 +9,11 @@ export const getPlates = async (accountId: string): Promise<CardResponse[]> => {
   return response
 }
 
-export const addPlates = async (body: AddPlateDTO) => {
+export const addPlates = async ({ accountId, cards }: AddPlateDTO) => {
   const response = await fetchData({
-    url: "/accounts/cards",
+    url: `/accounts/cards/${accountId}`, // 👈 accountId en la URL
     method: "POST",
-    body,
+    body: { cards },                     // 👈 body igual al de Postman
   })
   return response
 }

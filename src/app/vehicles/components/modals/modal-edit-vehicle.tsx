@@ -35,7 +35,7 @@ export default function ModalEditVehicle() {
   // 🧩 Obtenemos el vehículo que se pasó desde la tabla
   const modalState = openModals.find(
     (modal) => modal.id === ModalsVehicle.EDIT_VEHICLE,
-  )
+  ) 
 
   const vehicle = modalState?.prop?.vehicle as VehicleResponse | undefined
 
@@ -81,7 +81,7 @@ export default function ModalEditVehicle() {
       initialKilometrage: vehicle.mileage ?? undefined,
     },
   })
-    
+
   /* ----------------- Helpers ----------------- */
 
   const handlePlateChange = (value: string) => {

@@ -155,9 +155,7 @@ export const getProductsByAccount = async (
 ): Promise<ProductResponse[]> => {
   const response = await fetchData<ProductResponse[]>({
     url: `/accounts/${accountId}/products`,
-    params: {
-      stock,
-    },
+    params: stock ? { stock } : undefined, // 👈 evitamos mandar undefined raro
   })
   return response
 }
@@ -170,6 +168,74 @@ export const updateProductsByClient = async (
   const response = await fetchData({
     url: `/accounts/${accountId}/products`,
     method: "PATCH",
+    body,
+  })
+  return response
+}
+
+/* -------------------------------------------
+ * 💳 TARJETAS DEL CLIENTE
+ * ---------------------------------------- */
+
+/**
+ * 📌 LISTAR TARJETAS POR CLIENTE
+ * GET /accounts/cards/by-client/:clientId
+ *  - Se usará para renderizar la lista en la pestaña "Tarjetas"
+ */
+export const getCardsByClientId = async (
+  clientId: string,
+): Promise<any> => {
+  const response = await fetchData<any>({
+    url: `/accounts/cards/by-client/${clientId}`,
+  })
+  return response
+}
+
+/**
+ * 📌 CREAR TARJETA PARA UNA CUENTA
+ * POST /accounts/cards/:accountId
+ *  - Crea una nueva tarjeta asociada a una cuenta (crédito / anticipo / canje)
+ */
+export const createCardForAccount = async (
+  accountId: string,
+  body: any,
+): Promise<any> => {
+  const response = await fetchData<any>({
+    url: `/accounts/cards/${accountId}`,
+    method: "POST",
+    body,
+  })
+  return response
+}
+
+/**
+ * 🔄 ACTUALIZAR TARJETA
+ * PATCH /accounts/cards/:cardId
+ *  - Permite cambiar estado, productos, etc.
+ */
+export const updateCard = async (
+  cardId: string,
+  body: any,
+): Promise<any> => {
+  const response = await fetchData<any>({
+    url: `/accounts/cards/${cardId}`,
+    method: "PATCH",
+    body,
+  })
+  return response
+}
+
+/**
+ * 💰 ASIGNAR SALDO A UNA TARJETA
+ * POST /accounts/cards/:accountId/assign-balance
+ */
+export const assignCardBalance = async (
+  accountId: string,
+  body: any,
+): Promise<any> => {
+  const response = await fetchData<any>({
+    url: `/accounts/cards/${accountId}/assign-balance`,
+    method: "POST",
     body,
   })
   return response

@@ -1,3 +1,4 @@
+// src/shared/components/ui/combo-box.tsx
 import { Check, ChevronDown } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { ClipLoader } from "react-spinners"
@@ -32,6 +33,8 @@ export interface ComboBoxProps extends Omit<ButtonProps, "onSelect"> {
   onSelect?: (option: string) => boolean | void
   isLoading?: boolean
   searchable?: boolean
+  /** 🔍 Placeholder del input de búsqueda (opcional) */
+  searchPlaceholder?: string
 }
 
 export function ComboBox({
@@ -45,6 +48,7 @@ export function ComboBox({
   value: controlledValue,
   isLoading = false,
   searchable = false,
+  searchPlaceholder = "Buscar...",
   ...props
 }: ComboBoxProps) {
   const [open, setOpen] = useState(false)
@@ -62,6 +66,7 @@ export function ComboBox({
     }
     setOpen(false)
   }
+
   useEffect(() => {
     setValue(defaultValue?.toString() ?? "")
   }, [defaultValue])
@@ -82,11 +87,12 @@ export function ComboBox({
           {label}
         </Label>
       )}
-      <Popover modal={true} open={open && !isLoading} onOpenChange={setOpen}>
+
+      <Popover modal open={open && !isLoading} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
-            variant={"outline"}
-            size={"header"}
+            variant="outline"
+            size="header"
             aria-expanded={open}
             {...props}
             className={cn(
@@ -117,20 +123,23 @@ export function ComboBox({
             </div>
           </Button>
         </PopoverTrigger>
+
         <PopoverContent
           asChild
           className={cn("popover-content-width-full rounded p-0")}
         >
           <Command
+            // 👇 usamos el filtro builtin solo cuando searchable = true
             shouldFilter={searchable}
             className={cn(options.length > 8 && "pr-1")}
           >
             <CommandInput
-              placeholder="Buscar..."
+              placeholder={searchPlaceholder}
               className={cn(
                 !searchable && "hidden h-0 overflow-hidden border-0 p-0",
               )}
             />
+
             <CommandList>
               <ScrollArea
                 className={cn(
@@ -142,15 +151,17 @@ export function ComboBox({
                 <CommandGroup>
                   {options.map((option) => (
                     <CommandItem
+                      key={option.value}
+                      // ❗ value = LABEL → lo que se usa para filtrar al escribir
+                      value={option.label}
+                      // cuando seleccionas, enviamos el ID real
+                      onSelect={() => handleSelect(option.value.toString())}
                       className={cn(
                         "rounded! dark:text-gray-300",
                         option.value === value
                           ? "bg-blue-100 font-bold dark:bg-background"
                           : "transition-colors hover:bg-blue-50 hover:dark:bg-background",
                       )}
-                      key={option.value}
-                      value={option.value}
-                      onSelect={handleSelect}
                     >
                       {option.label}
                       <Check

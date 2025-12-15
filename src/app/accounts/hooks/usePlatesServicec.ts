@@ -1,3 +1,4 @@
+// usePlatesServicec.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { useModalStore } from "@/shared/store/modal.store"
@@ -8,7 +9,7 @@ import {
   searchPlateByClientId,
 } from "../services/plates.service"
 import { Modals } from "../types/modals-name"
-import { AddPlateDTO, EditPlateDTO } from "../types/plate.type"
+import type { AddPlateDTO, EditPlateDTO } from "../types/plate.type"
 
 export function useGetPlates(accountId?: string) {
   return useQuery({

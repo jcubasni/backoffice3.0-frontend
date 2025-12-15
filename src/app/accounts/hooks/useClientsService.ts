@@ -100,8 +100,8 @@ export function useSearchClientBySaleDocument(params: SearchClientParams) {
  * ---------------------------------------- */
 export function useGetProductsByAccount(accountId?: string) {
   return useQuery({
-    queryKey: ["products", "by-client", accountId],
-    queryFn: () => getProductsByAccount(accountId!),
+    queryKey: ["account-products", accountId],
+    queryFn: () => getProductsByAccount(accountId!, 1), // 👈 enviamos stock=1
     enabled: !!accountId,
   })
 }

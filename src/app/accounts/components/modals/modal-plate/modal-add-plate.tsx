@@ -1,7 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Plus, QrCode, Trash2 } from "lucide-react"
 import { useFieldArray, useForm } from "react-hook-form"
-import { useGetProductsByAccount } from "@/app/accounts/hooks/useClientsService"
+
+import { useGetProducts } from "@/app/products/hooks/useProductsService"
 import { useAddPlates } from "@/app/accounts/hooks/usePlatesServicec"
 import { generateCardNumber } from "@/app/accounts/lib/plates"
 import {
@@ -9,7 +10,8 @@ import {
   plateArraySchema,
 } from "@/app/accounts/schemas/plate.schema"
 import { Modals } from "@/app/accounts/types/modals-name"
-import { AddPlateDTO, CardType } from "@/app/accounts/types/plate.type"
+import type { AddPlateDTO } from "@/app/accounts/types/plate.type"
+
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ComboBoxForm } from "@/shared/components/form/combo-box-form"
@@ -20,17 +22,28 @@ import Modal from "@/shared/components/ui/modal"
 import { dataToCombo } from "@/shared/lib/combo-box"
 import { useModalStore } from "@/shared/store/modal.store"
 
+// 👇 NUEVO: traer vehículos del módulo Vehículos
+import { useGetVehicles } from "@/app/vehicles/hooks/useVehiclesService"
+
 export default function ModalAddPlate() {
+  // Puede ser string | undefined
   const accountId = useModalStore((state) => state.openModals).find(
     (modal) => modal.id === Modals.ADD_PLATE,
-  )?.prop as string
-  const products = useGetProductsByAccount(accountId)
+  )?.prop as string | undefined
+
+  const productsQuery = useGetProducts()
+  const vehiclesQuery = useGetVehicles({
+    // puedes ajustar estos filtros si quieres
+    limit: 1000,
+    page: 1,
+  })
+
   const addPlates = useAddPlates()
 
   const form = useForm<PlateArrayData>({
     resolver: zodResolver(plateArraySchema),
     defaultValues: {
-      plates: [{ plate: "", cardNumber: "" }],
+      plates: [{ plate: "", cardNumber: "", productId: 0 }],
     },
   })
 
@@ -38,27 +51,6 @@ export default function ModalAddPlate() {
     control: form.control,
     name: "plates",
   })
-
-  const handlePlateChange = (index: number, value: string) => {
-    // Convert to uppercase and remove invalid characters (keep hyphen)
-    let formattedValue = value.toUpperCase().replace(/[^A-Z0-9-]/g, "")
-
-    // Remove multiple hyphens and keep only one
-    formattedValue = formattedValue.replace(/-+/g, "-")
-
-    // Auto-format: add hyphen after 3 characters if not present
-    if (formattedValue.length > 3 && !formattedValue.includes("-")) {
-      formattedValue = `${formattedValue.slice(0, 3)}-${formattedValue.slice(3, 6)}`
-    }
-
-    // Limit to XXX-XXX format (7 characters max)
-    if (formattedValue.length > 7) {
-      formattedValue = formattedValue.slice(0, 7)
-    }
-
-    // Update the plate field with formatted value
-    form.setValue(`plates.${index}.plate`, formattedValue)
-  }
 
   const handleGenerateCardNumber = (index: number) => {
     const plateValue = form.getValues(`plates.${index}.plate`)
@@ -69,16 +61,21 @@ export default function ModalAddPlate() {
   }
 
   const onSubmit = (data: PlateArrayData) => {
+    if (!accountId) {
+      console.error("accountId no definido al abrir el modal de placas")
+      return
+    }
+
     const payload: AddPlateDTO = {
+      accountId, // 👈 ya validado
       cards: data.plates.map((plate) => ({
-        accountId,
-        cardTypeId: CardType.INTERNO,
-        plate: plate.plate,
+        licensePlate: plate.plate,
         cardNumber: plate.cardNumber,
-        balance: 0,
-        productId: plate.productId,
+        balance: 0, // por ahora 0
+        productIds: plate.productId ? [plate.productId] : [],
       })),
     }
+
     addPlates.mutate(payload)
   }
 
@@ -87,9 +84,11 @@ export default function ModalAddPlate() {
       modalId={Modals.ADD_PLATE}
       title="Agregar placa"
       className="overflow-y-auto sm:w-[600px]"
-      scrollable={true}
+      scrollable
     >
-      <Input orientation="horizontal" value={accountId} disabled hidden />
+      {/* Solo como referencia/debug, no visible */}
+      <Input orientation="horizontal" value={accountId ?? ""} disabled hidden />
+
       <FormWrapper form={form} onSubmit={onSubmit}>
         {fields.map((field, index) => (
           <>
@@ -108,16 +107,22 @@ export default function ModalAddPlate() {
               </div>
 
               <section className="grid grid-cols-2 gap-4">
-                <InputForm
-                  name={`plates.${index}.plate` as any}
-                  label="Placa:"
-                  maxLength={7}
-                  placeholder="ABC-123"
-                  onChange={(e) => handlePlateChange(index, e.target.value)}
+                {/* 🔹 AHORA LA PLACA ES UN COMBOBOX CON LAS PLACAS DEL MÓDULO VEHÍCULOS */}
+                <ComboBoxForm
+                  name={`plates.${index}.plate` as const}
+                  label="Placa"
+                  classContainer="col-span-2"
+                  className="w-full!"
+                  searchable
+                  options={dataToCombo(
+                    vehiclesQuery.data?.rows ?? [],
+                    "plate",     // value
+                    "plate",     // label
+                  )}
                 />
 
                 <InputForm
-                  name={`plates.${index}.cardNumber` as any}
+                  name={`plates.${index}.cardNumber` as const}
                   label="Tarjeta:"
                   readOnly
                   icon={QrCode}
@@ -125,12 +130,13 @@ export default function ModalAddPlate() {
                 />
 
                 <ComboBoxForm
-                  name={`plates.${index}.productId` as any}
+                  name={`plates.${index}.productId` as const}
                   label="Producto"
                   classContainer="col-span-2"
                   className="w-full!"
+                  searchable
                   options={dataToCombo(
-                    products.data,
+                    productsQuery.data ?? [],
                     "productId",
                     "description",
                   )}
@@ -150,7 +156,7 @@ export default function ModalAddPlate() {
         </Button>
 
         <Modal.Footer>
-          <Button type="submit" variant="outline">
+          <Button type="submit" variant="outline" disabled={!accountId}>
             Guardar
           </Button>
         </Modal.Footer>

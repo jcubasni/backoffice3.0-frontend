@@ -1,6 +1,7 @@
-import { CreditCard, DollarSign, Edit2, Plus, Trash2 } from "lucide-react"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useFormContext } from "react-hook-form"
+import { CreditCard, DollarSign, Edit2, Plus, Trash2 } from "lucide-react"
+
 import {
   type CardAssignment,
   createNewAssignment,
@@ -11,6 +12,7 @@ import type { CreateClientSchema } from "@/app/accounts/schemas/create-client.sc
 import { AccountTypeForClient } from "@/app/accounts/types/client.type"
 import { Modals } from "@/app/accounts/types/modals-name"
 import { useGetAccountTypes } from "@/app/common/hooks/useCommonService"
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -27,21 +29,32 @@ const accountTypeLabels: Record<AccountTypeForClient, string> = {
 
 export function Cards() {
   const form = useFormContext<CreateClientSchema>()
-  const vehicles = form.watch("vehicles") || []
-  const accounts = form.watch("accounts") || []
+
+  const vehicles = form.watch("vehicles") ?? []
+  const accounts = form.watch("accounts") ?? []
+
   const { openModal } = useModalStore()
-  const accountTypes = useGetAccountTypes()
+  const accountTypesQuery = useGetAccountTypes()
 
   const [selectedPlacaCard, setSelectedPlacaCard] = useState("")
-  const [selectedAccountCard, setSelectedAccountCard] = useState<string>("")
+  const [selectedAccountCard, setSelectedAccountCard] = useState("")
   const [editingCardId, setEditingCardId] = useState<string | null>(null)
 
-  const cardAssignments = getAllCardAssignments(vehicles)
-  const availableAccounts = getAvailableAccounts(
-    accounts,
-    selectedPlacaCard,
-    vehicles,
-    editingCardId,
+  // 📌 Memoizamos para no recalcular en cada render
+  const cardAssignments = useMemo(
+    () => getAllCardAssignments(vehicles),
+    [vehicles],
+  )
+
+  const availableAccounts = useMemo(
+    () =>
+      getAvailableAccounts(
+        accounts,
+        selectedPlacaCard,
+        vehicles,
+        editingCardId,
+      ),
+    [accounts, selectedPlacaCard, vehicles, editingCardId],
   )
 
   const deleteCardAssignment = (assignmentId: string) => {
@@ -55,7 +68,7 @@ export function Cards() {
 
     const vehicle = vehicles[vehicleIndex]
     const updatedAccountsType = (vehicle.accountsType || []).filter(
-      (_, index) => index !== accountIndex,
+      (_acc, index) => index !== accountIndex,
     )
 
     form.setValue(`vehicles.${vehicleIndex}.accountsType`, updatedAccountsType)
@@ -83,10 +96,10 @@ export function Cards() {
     ) as AccountTypeForClient
 
     // Obtener el código del tipo de cuenta
-    const accountType = accountTypes.data?.find(
+    const accountType = accountTypesQuery.data?.find(
       (type) => type.id === accountTypeId,
     )
-    const accountTypeCode = accountType?.code || accountTypeId.toString()
+    const accountTypeCode = accountType?.code ?? accountTypeId.toString()
 
     // Crear nueva asignación usando la función utilitaria
     const newAssignment = createNewAssignment(
@@ -116,7 +129,7 @@ export function Cards() {
       ])
     }
 
-    // Reset form
+    // Reset selección
     setSelectedPlacaCard("")
     setSelectedAccountCard("")
     setEditingCardId(null)
@@ -134,9 +147,10 @@ export function Cards() {
       onAssignBalance: (balance: number) => {
         const vehicle = vehicles[assignment.vehicleIndex]
         const updatedAccountsType = [...(vehicle.accountsType || [])]
+
         updatedAccountsType[assignment.accountIndex] = {
           ...updatedAccountsType[assignment.accountIndex],
-          balance: balance,
+          balance,
         }
 
         form.setValue(
@@ -146,6 +160,8 @@ export function Cards() {
       },
     })
   }
+
+  const isAddDisabled = !selectedPlacaCard || !selectedAccountCard
 
   return (
     <div className="space-y-6">
@@ -165,7 +181,8 @@ export function Cards() {
               options={dataToComboAdvanced(
                 vehicles,
                 (vehicle) => vehicle.licensePlate,
-                (vehicle) => `${vehicle.licensePlate} (${vehicle.vehicleType})`,
+                (vehicle) =>
+                  `${vehicle.licensePlate} (${vehicle.vehicleType})`,
               )}
               onSelect={(value) => {
                 setSelectedPlacaCard(value)
@@ -194,7 +211,7 @@ export function Cards() {
               type="button"
               onClick={addCardAssignment}
               className="max-md:w-full"
-              disabled={!selectedPlacaCard || !selectedAccountCard}
+              disabled={isAddDisabled}
             >
               <Plus className="mr-2 h-4 w-4" />
               {editingCardId ? "Actualizar Asignación" : "Agregar Asignación"}
@@ -215,6 +232,7 @@ export function Cards() {
           {cardAssignments.map((card) => {
             const isCreditAccount =
               card.accountTypeId === AccountTypeForClient.CREDIT
+
             return (
               <Card key={card.id} className="bg-sidebar/60 p-4">
                 <div className="flex h-full flex-col justify-between gap-3">
@@ -233,6 +251,7 @@ export function Cards() {
                         <CreditCard className="h-4 w-4" />
                         <span className="font-mono">{card.cardNumber}</span>
                       </div>
+
                       {isCreditAccount && (
                         <div className="flex items-center gap-2 text-foreground">
                           <DollarSign className="h-4 w-4" />
@@ -253,12 +272,14 @@ export function Cards() {
                         icon={DollarSign}
                       />
                     )}
+
                     <TooltipButton
                       onClick={() => editCardAssignment(card)}
                       className="text-blue-600 hover:text-blue-700"
                       tooltip="Editar asignación"
                       icon={Edit2}
                     />
+
                     <TooltipButton
                       tooltip="Eliminar asignación"
                       onClick={() => deleteCardAssignment(card.id)}

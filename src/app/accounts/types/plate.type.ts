@@ -1,8 +1,15 @@
 import { PersonInfo } from "./client.type"
 
+/** Tipo de tarjeta (catálogo del backend) */
 export enum CardType {
   INTERNO = 8,
   GENERAL = 10,
+}
+
+/** Estado de la tarjeta (catálogo del backend) */
+export enum CardStatus {
+  ACTIVE = 40000,
+  INACTIVE = 40001,
 }
 
 type ClientResponse = Pick<PersonInfo, "firstName" | "lastName"> & {
@@ -10,6 +17,7 @@ type ClientResponse = Pick<PersonInfo, "firstName" | "lastName"> & {
 }
 
 type VehicleResponse = {
+  id?: string
   plate: string
 }
 
@@ -18,30 +26,36 @@ type ProductResponse = {
   name: string
 }
 
+/** Tarjeta tal como viene del backend en GET /accounts/cards/... */
 export type CardResponse = {
   accountCardId: string
   client: ClientResponse
   vehicle?: VehicleResponse
   balance: number
   cardNumber: string
-  product: ProductResponse
-  status: 1 | 0
+  products: ProductResponse[]   // 👈 en la respuesta viene "products"
+  status: CardStatus            // 👈 usamos el enum de arriba
 }
 
-export type PlateDTO = {
-  accountId: string
-  cardTypeId: number
-  plate: string
+/** Body de cada tarjeta en el POST /accounts/cards/{accountId} */
+export type CreateAccountCard = {
+  licensePlate: string
   cardNumber: string
   balance: number
-  productId: number
+  productIds: number[]
+  cardTypeId?: CardType | number
 }
 
+/** DTO que usamos en el frontend para crear tarjetas */
 export type AddPlateDTO = {
-  cards: PlateDTO[]
+  accountId: string
+  cards: CreateAccountCard[]
 }
 
+/** DTO para actualizar una tarjeta existente */
 export type EditPlateDTO = {
   accountCardId: string
-  body: Partial<PlateDTO>
+  body: Partial<{
+    balance: number
+  }>
 }

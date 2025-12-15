@@ -9,6 +9,8 @@ import { useForm } from "react-hook-form"
 import { SidebarEditClient } from "./sidebar-edit-client"
 import { ClientEditInfo } from "./client-edit-info"
 import { ClientAccountsEdit } from "./client-accounts-edit"
+import { ClientCardsEdit } from "./client-cards-edit" // 👈 NUEVO IMPORT
+
 import { clientTabs } from "@/app/accounts/lib/client-tabs"
 
 import {
@@ -27,7 +29,6 @@ import { useModalStore } from "@/shared/store/modal.store"
 export default function ModalEditClients() {
   const [activeTab, setActiveTab] = useState("misDatos")
 
-  // 👉 dataModal ahora DEBE tener el id del cliente
   const dataModal = useModalStore((state) =>
     state.openModals.find((modal) => modal.id === Modals.EDIT_CLIENT),
   )?.prop as any | undefined
@@ -49,25 +50,21 @@ export default function ModalEditClients() {
     },
   })
 
-  // 🔵 Cargar datos del cliente en el formulario
   useEffect(() => {
     if (dataModal) {
       form.reset({
         firstName: dataModal.firstName ?? "",
         lastName: dataModal.lastName ?? "",
-        // Estos campos vienen mapeados desde la tabla (por ahora maquetados)
         address: dataModal.address ?? "",
         department: dataModal.department ?? "",
         province: dataModal.province ?? "",
         district: dataModal.district ?? "",
         email: dataModal.email ?? "",
-        // en el backend es phoneNumber
         phone: dataModal.phoneNumber ?? dataModal.phone ?? "",
       })
     }
   }, [dataModal, form])
 
-  // 🔐 Si aún no hay data, no mostramos nada
   if (!dataModal) {
     return null
   }
@@ -78,14 +75,12 @@ export default function ModalEditClients() {
       return
     }
 
-    // 👇 Body que espera PATCH /clients/:id (por ahora sin ubigeo)
     const payload = {
       firstName: data.firstName,
       lastName: data.lastName,
       address: data.address,
       email: data.email,
       phone: data.phone,
-      // districtId lo añadiremos cuando implementemos el flujo de ubigeo
     }
 
     mutate({
@@ -96,7 +91,7 @@ export default function ModalEditClients() {
 
   const submitForm = form.handleSubmit(handleSubmit)
 
-  // Tabs con componentes específicos para editar
+  // 👉 Tabs con overrides específicos para edición
   const editableTabs = clientTabs.map((tab) => {
     if (tab.id === "misDatos") {
       return {
@@ -109,6 +104,14 @@ export default function ModalEditClients() {
       return {
         ...tab,
         component: <ClientAccountsEdit clientId={dataModal.id} />,
+      }
+    }
+
+    // 👇 NUEVO: tab "tarjetas" usando datos reales del backend
+    if (tab.id === "tarjetas") {
+      return {
+        ...tab,
+        component: <ClientCardsEdit clientId={dataModal.id} />,
       }
     }
 

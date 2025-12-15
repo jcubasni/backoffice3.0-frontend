@@ -34,6 +34,7 @@ import { getTableColumnOptions } from "@/app/configurations/shared/lib/table-col
 
 import { cn } from "@/lib/utils"
 import { useEffect } from "react"
+import { ModalsPlate } from "@/app/accounts/components/modals/modal-plate/modals-plate"
 
 // -------------------- RUTA --------------------
 export const Route = createFileRoute("/(sidebar)/account/clients")({
@@ -192,6 +193,7 @@ function RouteComponent() {
 
       {/* Modales */}
       <ModalsClient />
+       <ModalsPlate />
     </>
   )
 }
