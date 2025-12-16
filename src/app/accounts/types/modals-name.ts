@@ -9,6 +9,7 @@ export const Modals = {
   // Plate
   ADD_PLATE: "modal-add-plate",
   UPDATE_BALANCE: "modal-update-balance",
+  UPDATE_CARD_PRODUCTS: "modal-update-card-products",
 
   // 💳 Accounts
   EDIT_ACCOUNT: "modal-edit-account", // 👈 nuevo modal para editar cuenta

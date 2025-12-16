@@ -8,8 +8,8 @@ export enum CardType {
 
 /** Estado de la tarjeta (catálogo del backend) */
 export enum CardStatus {
-  ACTIVE = 40000,
-  INACTIVE = 40001,
+  ACTIVE = 40001, // backend: ACTIVO
+  INACTIVE = 40002, // backend:INACTIVO
 }
 
 type ClientResponse = Pick<PersonInfo, "firstName" | "lastName"> & {

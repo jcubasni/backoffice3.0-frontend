@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Car, CreditCard, DollarSign, Plus } from "lucide-react"
+import { Car, CreditCard, DollarSign, Package, Plus } from "lucide-react"
 
 import {
   Accordion,
@@ -69,6 +69,14 @@ function CardItem({ card }: { card: CardResponse }) {
       currentBalance: card.balance,
     })
   }
+  const handleEditProducts = () => {
+  openModal(Modals.UPDATE_CARD_PRODUCTS, {
+    accountCardId: card.accountCardId,
+    cardNumber: card.cardNumber,
+    plate: card.vehicle?.plate ?? "Sin placa",
+    currentProducts: card.products ?? [],
+  })
+}
 
   return (
     <Card className="bg-sidebar/60 p-4">
@@ -117,6 +125,13 @@ function CardItem({ card }: { card: CardResponse }) {
         {/* Acciones */}
         <div className="flex justify-end">
           <TooltipButton.Box className="mr-0">
+            <TooltipButton
+              onClick={handleEditProducts}
+              className="text-violet-600 hover:text-violet-700"
+              tooltip="Editar productos"
+              icon={Package}
+            />
+            
             <TooltipButton
               onClick={handleAssignBalance}
               className="text-green-600 hover:text-green-700"

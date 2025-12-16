@@ -152,7 +152,7 @@ export function Cards() {
           ...updatedAccountsType[assignment.accountIndex],
           balance,
         }
-
+  
         form.setValue(
           `vehicles.${assignment.vehicleIndex}.accountsType`,
           updatedAccountsType,
@@ -161,7 +161,10 @@ export function Cards() {
     })
   }
 
+ 
+
   const isAddDisabled = !selectedPlacaCard || !selectedAccountCard
+console.log("✅ Render Cards.tsx (asignaciones placa↔cuenta)")
 
   return (
     <div className="space-y-6">
@@ -278,7 +281,8 @@ export function Cards() {
                       className="text-blue-600 hover:text-blue-700"
                       tooltip="Editar asignación"
                       icon={Edit2}
-                    />
+                    />  
+
 
                     <TooltipButton
                       tooltip="Eliminar asignación"
@@ -287,6 +291,8 @@ export function Cards() {
                       icon={Trash2}
                     />
                   </TooltipButton.Box>
+                  <span className="text-xs text-yellow-400">BOTONES</span>
+
                 </div>
               </Card>
             )

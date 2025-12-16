@@ -10,6 +10,11 @@ const modals = [
     modalId: Modals.UPDATE_BALANCE,
     component: () => import("./modal-update-balance"),
   },
+  {
+  modalId: Modals.UPDATE_CARD_PRODUCTS,
+  component: () => import("./modal-update-card-products"),
+},
+
 ]
 
 export const ModalsPlate = () => {
