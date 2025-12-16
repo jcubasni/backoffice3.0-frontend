@@ -1,25 +1,41 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useState } from "react"
 import { Car, CreditCard, DollarSign, Plus } from "lucide-react"
 
-import { useSearchPlateByClientId } from "@/app/accounts/hooks/usePlatesServicec"
-import { useGetAccountByClientId } from "@accounts/hooks/useClientsService"
-
-import type { CardResponse } from "@accounts/types/plate.type"
-import { CardStatus } from "@accounts/types/plate.type"
-import { Modals } from "@accounts/types/modals-name"
-
-import { Button } from "@/components/ui/button"
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion"
 import { Card } from "@/components/ui/card"
-import { ComboBox } from "@/shared/components/ui/combo-box"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+
+import { cn } from "@/lib/utils"
+import { formatCurrency } from "@/shared/lib/number"
+import { formatDate } from "@/shared/lib/date"
 import { TooltipButton } from "@/shared/components/ui/tooltip-button"
-import { dataToComboAdvanced } from "@/shared/lib/combo-box"
+import { ComboBox } from "@/shared/components/ui/combo-box"
+
+import {
+  useGetAccountByClientId,
+  useUpdateAccount,
+} from "@accounts/hooks/useClientsService"
+import type { AccountResponse, AccountUpdateDTO } from "@accounts/types/client.type"
+import { AccountTypeForClient } from "@accounts/types/client.type"
+import { AccountTypeStyles } from "@accounts/types/client.enum"
+
+import { useSearchPlateByClientId } from "@/app/accounts/hooks/usePlatesServicec"
+import type { CardResponse } from "@/app/accounts/types/plate.type"
+import { CardStatus } from "@/app/accounts/types/plate.type"
+import { Modals } from "@/app/accounts/types/modals-name"
 import { useModalStore } from "@/shared/store/modal.store"
 
-type ClientCardsEditProps = {
-  clientId: string
-}
+/* ───────────────────────────────────── */
+/*  PEQUEÑOS COMPONENTES DE APOYO       */
+/* ───────────────────────────────────── */
 
 function CardStatusBadge({ status }: { status: CardStatus }) {
   if (status === CardStatus.ACTIVE) {
@@ -63,9 +79,9 @@ function CardItem({ card }: { card: CardResponse }) {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <Car className="h-4 w-4 text-primary" />
-                <span className="font-semibold text-sm">{plate}</span>
+                <span className="text-sm font-semibold">{plate}</span>
               </div>
-              <p className="text-muted-foreground text-xs">
+              <p className="text-xs text-muted-foreground">
                 {card.client.fullName}
               </p>
             </div>
@@ -107,7 +123,6 @@ function CardItem({ card }: { card: CardResponse }) {
               tooltip="Asignar saldo"
               icon={DollarSign}
             />
-            {/* Más adelante se puede agregar Editar / Eliminar tarjeta */}
           </TooltipButton.Box>
         </div>
       </div>
@@ -115,65 +130,414 @@ function CardItem({ card }: { card: CardResponse }) {
   )
 }
 
+/* ───────────────────────────────────── */
+/*  COMPONENTE PRINCIPAL                */
+/* ───────────────────────────────────── */
+
+type ClientCardsEditProps = {
+  /** Si no hay clientId => modo "nuevo cliente" */
+  clientId?: string
+}
+
+type EditableFields = {
+  creditLine?: number
+  balance?: number
+  billingDays?: number
+  creditDays?: number
+  installments?: number
+  startDate?: string
+  endDate?: string
+}
+
 export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
+  /* ────────────────────────────── */
+  /*  MODO NUEVO CLIENTE (sin id)  */
+  /* ────────────────────────────── */
+
+  if (!clientId) {
+    return (
+      <div className="space-y-4">
+        {/* Header + filtros, igual que editar pero deshabilitado */}
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold text-foreground">
+              Tarjetas del cliente
+            </h2>
+            <p className="text-xs md:text-sm text-muted-foreground">
+              Gestiona las tarjetas vinculadas a las cuentas y vehículos del
+              cliente.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <ComboBox
+              label="Cuenta"
+              placeholder="Selecciona una cuenta"
+              className="min-w-[220px]"
+              disabled
+            />
+            <Button type="button" size="default" disabled>
+              <Plus className="mr-2 h-4 w-4" />
+              Agregar tarjeta
+            </Button>
+          </div>
+        </div>
+
+        <Card className="bg-sidebar/60 p-6">
+          <div className="space-y-1 text-center text-sm text-muted-foreground">
+            <p>Para gestionar tarjetas primero debes guardar el cliente.</p>
+            <p className="text-xs text-muted-foreground/70">
+              1. Completa las pestañas <strong>Mis datos</strong> y{" "}
+              <strong>Cuentas</strong>. <br />
+              2. Guarda el cliente. <br />
+              3. Luego, desde la tabla de clientes, usa el botón{" "}
+              <strong>Editar</strong> y ve a la pestaña{" "}
+              <strong>Tarjetas</strong>.
+            </p>
+          </div>
+        </Card>
+      </div>
+    )
+  }
+
+  /* ────────────────────────────── */
+  /*  MODO EDITAR (con clientId)   */
+  /* ────────────────────────────── */
+
   const { data: cards, isLoading, isError } = useSearchPlateByClientId(clientId)
   const { data: accounts } = useGetAccountByClientId(clientId)
+  const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount()
 
-  const { openModal } = useModalStore()
+  const [openItem, setOpenItem] = useState<string | undefined>(undefined)
+  const [editedAccounts, setEditedAccounts] = useState<
+    Record<string, EditableFields>
+  >({})
+
   const [selectedAccountId, setSelectedAccountId] = useState("")
 
-  // Opciones del combo de cuentas
-  const accountOptions = useMemo(
-    () =>
-      accounts && accounts.length > 0
-        ? dataToComboAdvanced(
-            accounts,
-            (acc) => acc.accountId,
-            (acc) =>
-              `${acc.type?.description ?? "Cuenta"} - ${acc.documentNumber}`,
-          )
-        : [],
-    [accounts],
-  )
+  const accountOptions =
+    accounts && accounts.length > 0
+      ? accounts.map((acc) => ({
+          label: `${acc.type?.description ?? "Cuenta"} - ${acc.documentNumber}`,
+          value: acc.accountId,
+        }))
+      : []
 
-  // Tarjetas (por ahora las mostramos todas; si quisieras,
-  // se pueden filtrar por cuenta seleccionada aquí)
-  const safeCards: CardResponse[] = useMemo(
-    () => (cards ?? []) as CardResponse[],
-    [cards],
-  )
-
-  const handleOpenAddPlate = () => {
-    if (!selectedAccountId) return
-    // Abrimos el modal de placas con el accountId
-    openModal(Modals.ADD_PLATE, selectedAccountId)
+  const handleChangeField = (
+    accountId: string,
+    field: keyof EditableFields,
+    value: string,
+  ) => {
+    setEditedAccounts((prev) => ({
+      ...prev,
+      [accountId]: {
+        ...prev[accountId],
+        [field]:
+          field === "startDate" || field === "endDate"
+            ? value
+            : value === ""
+              ? undefined
+              : Number(value),
+      },
+    }))
   }
 
-  if (isLoading) {
+  const getFieldValue = (
+    account: AccountResponse,
+    accountId: string,
+    field: keyof EditableFields,
+  ): string => {
+    const edited = editedAccounts[accountId]?.[field]
+
+    if (field === "startDate" || field === "endDate") {
+      const original =
+        field === "startDate" ? account.startDate : account.endDate
+      return (edited as string | undefined) ?? original ?? ""
+    }
+
+    const originalNumber =
+      (account as any)[field] !== undefined ? (account as any)[field] : ""
+    return edited !== undefined ? String(edited) : String(originalNumber ?? "")
+  }
+
+  const handleSaveAccount = (account: AccountResponse) => {
+    const edited = editedAccounts[account.accountId] || {}
+
+    const body: AccountUpdateDTO = {
+      creditLine:
+        edited.creditLine !== undefined ? edited.creditLine : account.creditLine,
+      billingDays:
+        edited.billingDays !== undefined
+          ? edited.billingDays
+          : account.billingDays,
+      creditDays:
+        edited.creditDays !== undefined ? edited.creditDays : account.creditDays,
+      installments:
+        edited.installments !== undefined
+          ? edited.installments
+          : account.installments,
+      startDate:
+        edited.startDate !== undefined ? edited.startDate : account.startDate,
+      endDate: edited.endDate !== undefined ? edited.endDate : account.endDate,
+    }
+
+    updateAccount({
+      accountId: account.accountId,
+      clientId,
+      data: body,
+    })
+  }
+
+  const renderAccountCard = (account: AccountResponse) => {
+    const typeId = account.type?.id as AccountTypeForClient | undefined
+    const accountLabel = account.type?.description ?? "Sin tipo"
+    const colorStyles = typeId ? AccountTypeStyles[typeId] : undefined
+
+    const itemValue = account.accountId
+    const isCredit = typeId === AccountTypeForClient.CREDIT
+
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        Cargando tarjetas...
-      </div>
+      <AccordionItem
+        key={account.accountId}
+        value={itemValue}
+        className="border-none"
+      >
+        <Card className="overflow-hidden bg-sidebar/60">
+          {/* CABECERA */}
+          <div className="flex items-center justify-between px-4 py-3">
+            <AccordionTrigger className="flex-1 py-0 hover:no-underline">
+              <div className="flex items-center gap-3 text-left">
+                <span
+                  className={cn(
+                    "h-3 w-3 rounded-full",
+                    colorStyles?.color,
+                  )}
+                />
+                <span className="font-semibold text-foreground">
+                  Cuenta {accountLabel}
+                </span>
+              </div>
+            </AccordionTrigger>
+
+            {/* Aquí podrías poner botón eliminar cuenta si el backend lo soporta */}
+          </div>
+
+          <AccordionContent className="border-t border-border px-4 pb-4 pt-3">
+            {/* Datos fijos */}
+            <div className="mb-4 space-y-1 text-sm">
+              <p className="text-muted-foreground">
+                N° documento:{" "}
+                <span className="text-foreground">
+                  {account.documentNumber}
+                </span>
+              </p>
+              <p className="text-muted-foreground">
+                Cliente:{" "}
+                <span className="text-foreground">{account.clientName}</span>
+              </p>
+              <p className="text-muted-foreground">
+                Dirección:{" "}
+                <span className="text-foreground">
+                  {account.address || "-"}
+                </span>
+              </p>
+            </div>
+
+            {/* FORMULARIO SOLO PARA CRÉDITO */}
+            {isCredit ? (
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Línea de crédito
+                    </label>
+                    <Input
+                      type="number"
+                      value={getFieldValue(
+                        account,
+                        account.accountId,
+                        "creditLine",
+                      )}
+                      onChange={(e) =>
+                        handleChangeField(
+                          account.accountId,
+                          "creditLine",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Saldo
+                    </label>
+                    <Input
+                      type="number"
+                      value={account.balance ?? 0}
+                      disabled
+                      readOnly
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Fecha de inicio
+                    </label>
+                    <Input
+                      type="date"
+                      value={getFieldValue(
+                        account,
+                        account.accountId,
+                        "startDate",
+                      )}
+                      onChange={(e) =>
+                        handleChangeField(
+                          account.accountId,
+                          "startDate",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Fecha de fin
+                    </label>
+                    <Input
+                      type="date"
+                      value={getFieldValue(
+                        account,
+                        account.accountId,
+                        "endDate",
+                      )}
+                      onChange={(e) =>
+                        handleChangeField(
+                          account.accountId,
+                          "endDate",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Días de facturación
+                    </label>
+                    <Input
+                      type="number"
+                      value={getFieldValue(
+                        account,
+                        account.accountId,
+                        "billingDays",
+                      )}
+                      onChange={(e) =>
+                        handleChangeField(
+                          account.accountId,
+                          "billingDays",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Días de crédito
+                    </label>
+                    <Input
+                      type="number"
+                      value={getFieldValue(
+                        account,
+                        account.accountId,
+                        "creditDays",
+                      )}
+                      onChange={(e) =>
+                        handleChangeField(
+                          account.accountId,
+                          "creditDays",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-sm text-muted-foreground">
+                      Cuotas
+                    </label>
+                    <Input
+                      type="number"
+                      value={getFieldValue(
+                        account,
+                        account.accountId,
+                        "installments",
+                      )}
+                      onChange={(e) =>
+                        handleChangeField(
+                          account.accountId,
+                          "installments",
+                          e.target.value,
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end">
+                  <Button
+                    type="button"
+                    onClick={() => handleSaveAccount(account)}
+                    disabled={isUpdating}
+                    className="mt-4"
+                  >
+                    Guardar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              // Resumen para otros tipos
+              <div className="mt-2 grid gap-x-10 gap-y-1 text-sm md:grid-cols-2 md:text-right">
+                <div className="text-muted-foreground">Línea crédito</div>
+                <div className="font-semibold">
+                  {formatCurrency(account.creditLine || 0, "PEN")}
+                </div>
+
+                <div className="text-muted-foreground">Saldo</div>
+                <div className="font-semibold">
+                  {formatCurrency(account.balance || 0, "PEN")}
+                </div>
+
+                {account.startDate && account.endDate && (
+                  <>
+                    <div className="text-muted-foreground">Vigencia</div>
+                    <div className="font-semibold">
+                      {formatDate(account.startDate)} -{" "}
+                      {formatDate(account.endDate)}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </AccordionContent>
+        </Card>
+      </AccordionItem>
     )
   }
 
-  if (isError) {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-red-500">
-        Ocurrió un error al cargar las tarjetas.
-      </div>
-    )
-  }
+  const safeCards = cards ?? []
 
   return (
     <div className="space-y-4">
       {/* Header + filtros */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-bold text-foreground text-xl">
+          <h2 className="text-xl font-semibold text-foreground">
             Tarjetas del cliente
           </h2>
-          <p className="text-muted-foreground text-xs md:text-sm">
+          <p className="text-xs md:text-sm text-muted-foreground">
             Gestiona las tarjetas vinculadas a las cuentas y vehículos del
             cliente.
           </p>
@@ -192,7 +556,12 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
           <Button
             type="button"
             size="default"
-            onClick={handleOpenAddPlate}
+            onClick={() => {
+              if (!selectedAccountId) return
+              useModalStore
+                .getState()
+                .openModal(Modals.ADD_PLATE, selectedAccountId)
+            }}
             disabled={!selectedAccountId}
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -202,7 +571,15 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
       </div>
 
       {/* Lista de tarjetas */}
-      {safeCards.length === 0 ? (
+      {isLoading ? (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Cargando tarjetas...
+        </div>
+      ) : isError ? (
+        <div className="flex h-full items-center justify-center text-sm text-red-500">
+          Ocurrió un error al cargar las tarjetas.
+        </div>
+      ) : safeCards.length === 0 ? (
         <Card className="bg-sidebar/60 p-6">
           <p className="text-center text-sm text-muted-foreground">
             Este cliente aún no tiene tarjetas registradas.

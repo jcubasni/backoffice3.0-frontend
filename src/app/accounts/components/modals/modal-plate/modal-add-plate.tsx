@@ -22,7 +22,7 @@ import Modal from "@/shared/components/ui/modal"
 import { dataToCombo } from "@/shared/lib/combo-box"
 import { useModalStore } from "@/shared/store/modal.store"
 
-// 👇 NUEVO: traer vehículos del módulo Vehículos
+// 👇 Vehículos del módulo Vehículos
 import { useGetVehicles } from "@/app/vehicles/hooks/useVehiclesService"
 
 export default function ModalAddPlate() {
@@ -33,12 +33,12 @@ export default function ModalAddPlate() {
 
   const productsQuery = useGetProducts()
   const vehiclesQuery = useGetVehicles({
-    // puedes ajustar estos filtros si quieres
-    limit: 1000,
     page: 1,
+    limit: 1000,
   })
 
-  const addPlates = useAddPlates()
+  // 🔹 IMPORTANTE: pasamos accountId al hook
+  const addPlates = useAddPlates(accountId)
 
   const form = useForm<PlateArrayData>({
     resolver: zodResolver(plateArraySchema),
@@ -66,8 +66,8 @@ export default function ModalAddPlate() {
       return
     }
 
+    // 👇 AddPlateDTO SOLO lleva cards
     const payload: AddPlateDTO = {
-      accountId, // 👈 ya validado
       cards: data.plates.map((plate) => ({
         licensePlate: plate.plate,
         cardNumber: plate.cardNumber,
@@ -107,7 +107,7 @@ export default function ModalAddPlate() {
               </div>
 
               <section className="grid grid-cols-2 gap-4">
-                {/* 🔹 AHORA LA PLACA ES UN COMBOBOX CON LAS PLACAS DEL MÓDULO VEHÍCULOS */}
+                {/* 🔹 PLACA: viene del módulo Vehículos */}
                 <ComboBoxForm
                   name={`plates.${index}.plate` as const}
                   label="Placa"
@@ -116,8 +116,8 @@ export default function ModalAddPlate() {
                   searchable
                   options={dataToCombo(
                     vehiclesQuery.data?.rows ?? [],
-                    "plate",     // value
-                    "plate",     // label
+                    "plate", // value
+                    "plate", // label
                   )}
                 />
 

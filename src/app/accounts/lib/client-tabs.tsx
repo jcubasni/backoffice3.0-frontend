@@ -12,7 +12,6 @@ import { JSX } from "react"
 import { AccountInfo } from "../components/modals/modal-client/modal-add-client/account-info"
 import { Cards } from "../components/modals/modal-client/modal-add-client/cards"
 import { ClientInfo } from "../components/modals/modal-client/modal-add-client/client-info"
-import { VehiclesInfo } from "../components/modals/modal-client/modal-add-client/vehicles-info"
 
 type ClientTab = {
   id: string
@@ -24,12 +23,6 @@ type ClientTab = {
 export const clientTabs: ClientTab[] = [
   { id: "misDatos", label: "Mis Datos", icon: User, component: <ClientInfo /> },
   { id: "cuentas", label: "Cuentas", icon: Wallet, component: <AccountInfo /> },
-  {
-    id: "vehiculos",
-    label: "Vehículos",
-    icon: Car,
-    component: <VehiclesInfo />,
-  },
   { id: "tarjetas", label: "Tarjetas", icon: CreditCard, component: <Cards /> },
   { id: "facturacion", label: "Facturación", icon: FileText },
   { id: "contactos", label: "Contactos", icon: Users },

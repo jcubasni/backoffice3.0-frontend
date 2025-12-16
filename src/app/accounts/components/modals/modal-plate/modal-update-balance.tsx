@@ -1,3 +1,6 @@
+"use client"
+
+import { useEffect } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
@@ -14,39 +17,42 @@ import { InputForm } from "@/shared/components/form/input-form"
 import Modal from "@/shared/components/ui/modal"
 import { useModalStore } from "@/shared/store/modal.store"
 
-type BalanceModalProp =
-  | string
-  | {
-      accountCardId: string
-      currentBalance?: number
-    }
+type UpdateBalanceModalProp = {
+  accountCardId: string
+  currentBalance: number
+}
 
 export default function ModalUpdateBalance() {
-  const modalProp = useModalStore((state) =>
+  const modalData = useModalStore((state) =>
     state.openModals.find((modal) => modal.id === Modals.UPDATE_BALANCE),
-  )?.prop as BalanceModalProp | undefined
+  )?.prop as UpdateBalanceModalProp | undefined
 
-  // Si no hay datos, no renderizamos el modal
-  if (!modalProp) return null
-
-  const accountCardId =
-    typeof modalProp === "string" ? modalProp : modalProp.accountCardId
-
-  const currentBalance =
-    typeof modalProp === "string" ? undefined : modalProp.currentBalance
+  const accountCardId = modalData?.accountCardId ?? ""
+  const currentBalance = modalData?.currentBalance ?? 0
 
   const editPlate = useEditPlate()
 
   const form = useForm<PlateBalanceData>({
     resolver: zodResolver(PlateBalanceSchema),
     defaultValues: {
-      balance: currentBalance ?? 0,
+      balance: currentBalance,
     },
   })
 
+  // Cuando cambie el saldo que viene de la tarjeta, actualizamos el form
+  useEffect(() => {
+    if (modalData) {
+      form.reset({
+        balance: modalData.currentBalance,
+      })
+    }
+  }, [modalData, form])
+
   const onSubmit = (data: PlateBalanceData) => {
-    // Protección extra por si algo viene mal
-    if (!accountCardId) return
+    if (!accountCardId) {
+      console.error("accountCardId no definido en ModalUpdateBalance")
+      return
+    }
 
     editPlate.mutate({
       accountCardId,
@@ -56,23 +62,30 @@ export default function ModalUpdateBalance() {
     })
   }
 
+  // Si por algún motivo no hay data, no renderizamos el modal
+  if (!modalData) return null
+
   return (
     <Modal
       modalId={Modals.UPDATE_BALANCE}
       title="Agregar saldo"
-      className="overflow-y-auto sm:w-[400px]"
+      className="overflow-y-auto sm:w-[380px]"
     >
       <FormWrapper form={form} onSubmit={onSubmit}>
         <InputForm
-          label="Saldo a asignar"
+          label="Saldo"
           name="balance"
           type="number"
           step="0.01"
         />
 
         <Modal.Footer>
-          <Button type="submit" variant="outline">
-            Guardar
+          <Button
+            type="submit"
+            variant="outline"
+            disabled={editPlate.isPending}
+          >
+            {editPlate.isPending ? "Guardando..." : "Guardar"}
           </Button>
         </Modal.Footer>
       </FormWrapper>

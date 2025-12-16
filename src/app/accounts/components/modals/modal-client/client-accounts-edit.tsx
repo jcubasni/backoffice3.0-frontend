@@ -359,7 +359,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="default"
                     onClick={handleOpenAddPlate}
                   >
                     Gestionar tarjetas
@@ -404,7 +404,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    size="sm"
+                    size="default"
                     onClick={handleOpenAddPlate}
                   >
                     Gestionar tarjetas

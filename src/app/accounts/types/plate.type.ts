@@ -38,19 +38,19 @@ export type CardResponse = {
 }
 
 /** Body de cada tarjeta en el POST /accounts/cards/{accountId} */
-export type CreateAccountCard = {
+// plate.type.ts
+
+export type CardCreateDTO = {
   licensePlate: string
   cardNumber: string
   balance: number
   productIds: number[]
-  cardTypeId?: CardType | number
 }
 
-/** DTO que usamos en el frontend para crear tarjetas */
 export type AddPlateDTO = {
-  accountId: string
-  cards: CreateAccountCard[]
+  cards: CardCreateDTO[]
 }
+
 
 /** DTO para actualizar una tarjeta existente */
 export type EditPlateDTO = {
@@ -59,3 +59,4 @@ export type EditPlateDTO = {
     balance: number
   }>
 }
+

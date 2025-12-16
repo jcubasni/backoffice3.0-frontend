@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion"
 import { Save } from "lucide-react"
 import { useState } from "react"
 import { useForm } from "react-hook-form"
+
 import { useAddClient } from "@/app/accounts/hooks/useClientsService"
 import { mapCreateClientSchemaToClientDTO } from "@/app/accounts/lib/client-mapper"
 import { clientTabs } from "@/app/accounts/lib/client-tabs"
@@ -13,15 +14,19 @@ import {
   createClientSchema,
 } from "@/app/accounts/schemas/create-client.schema"
 import { Modals } from "@/app/accounts/types/modals-name"
+
 import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { FormWrapper } from "@/shared/components/form/form-wrapper"
 import Modal from "@/shared/components/ui/modal"
+
 import { Sidebar } from "./sidebar-client"
 
 export default function ModalAddClient() {
   const [activeTab, setActiveTab] = useState("misDatos")
   const addClient = useAddClient()
+
   const form = useForm<CreateClientSchema>({
     resolver: zodResolver(createClientSchema),
     mode: "onChange",
@@ -30,9 +35,41 @@ export default function ModalAddClient() {
   const handleSubmit = (data: CreateClientSchema) => {
     const clientDTO = mapCreateClientSchemaToClientDTO(data)
     addClient.mutate(clientDTO)
-    console.log("Form data:", data)
-    console.log("DTO to send:", clientDTO)
+    // Si quieres debug, descomenta:
+    // console.log("Form data:", data)
+    // console.log("DTO to send:", clientDTO)
   }
+
+  /** Contenido especial para la pestaña TARJETAS
+   *  (en modo "nuevo cliente" solo mostramos explicación) */
+  const TarjetasInfo = () => (
+    <div className="flex-1 space-y-4 px-2">
+      <h2 className="text-xl font-semibold text-foreground">
+        Tarjetas del cliente
+      </h2>
+
+      <Card className="bg-sidebar/60 p-6">
+        <p className="text-sm text-muted-foreground">
+          Para gestionar las tarjetas de este cliente primero debes{" "}
+          <span className="font-semibold">guardar sus datos</span>. <br />
+          Luego, desde el listado de clientes, podrás{" "}
+          <span className="font-semibold">editar</span> el cliente y en la
+          pestaña <span className="font-semibold">Tarjetas</span>:
+        </p>
+
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>Seleccionar una cuenta del cliente.</li>
+          <li>Agregar nuevas tarjetas vinculadas a vehículos.</li>
+          <li>Asignar productos y saldos a cada tarjeta.</li>
+        </ul>
+
+        <p className="mt-3 text-xs text-muted-foreground/80">
+          Nota: esta pantalla de “Nuevo cliente” no crea tarjetas todavía, solo
+          registra la información base del cliente, sus cuentas y sus vehículos.
+        </p>
+      </Card>
+    </div>
+  )
 
   return (
     <Modal
@@ -48,11 +85,11 @@ export default function ModalAddClient() {
         <Sidebar />
 
         {/* Main Content Area */}
-        <main className="flex flex-1 px-1 py-6 md:p-6 h-full">
+        <main className="flex h-full flex-1 px-1 py-6 md:p-6">
           <Tabs
             value={activeTab}
             onValueChange={setActiveTab}
-            className="w-full flex-1 gap-4"
+            className="flex-1 w-full gap-4"
           >
             <TabsList className="mx-auto mb-6 h-auto w-fit justify-start gap-1.5 rounded-xl p-1 md:gap-4">
               {clientTabs.map((tab) => {
@@ -100,15 +137,21 @@ export default function ModalAddClient() {
                 )
               })}
             </TabsList>
+
             {clientTabs.map((tab) => (
               <TabsContent
                 key={tab.id}
                 value={tab.id}
                 className="flex-1 space-y-4 px-2"
               >
-                {tab.component || (
+                {/* 👇 Ajusta "tarjetas" si tu id del tab es "cards" u otro */}
+                {tab.id === "tarjetas" ? (
+                  <TarjetasInfo />
+                ) : tab.component ? (
+                  tab.component
+                ) : (
                   <div className="flex h-full flex-col items-center justify-center gap-2 py-12">
-                    <p className="text-slate-500 text-sm">
+                    <p className="text-sm text-slate-500">
                       Contenido no disponible
                     </p>
                   </div>
@@ -118,7 +161,7 @@ export default function ModalAddClient() {
           </Tabs>
         </main>
 
-        {/* Floating Save Button - Only visible on small screens */}
+        {/* Botón guardar (mobile) */}
         <div className="w-full px-4 pb-4 lg:hidden">
           <Button type="submit" className="w-full">
             <Save className="size-4" />
