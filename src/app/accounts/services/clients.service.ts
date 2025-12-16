@@ -116,6 +116,37 @@ export const createAccount = async (
   return response
 }
 
+/** ✅ CREAR CUENTAS "ONLY" PARA UN CLIENTE (POST /accounts/only)
+ *  - Sirve para crear 1, 2 o 3 cuentas (crédito/anticipo/canje) para un clientId
+ *  - Algunas cuentas pueden no tener formulario (solo accountTypeId)
+ */
+export type AccountOnlyCreateItem = {
+  accountTypeId: number
+  creditLine?: number
+  balance?: number
+  billingDays?: number
+  creditDays?: number
+  installments?: number
+  startDate?: string // "YYYY-MM-DD"
+  endDate?: string // "YYYY-MM-DD"
+}
+
+export type CreateAccountOnlyDTO = {
+  clientId: string
+  accounts: AccountOnlyCreateItem[]
+}
+
+export const createAccountOnly = async (
+  body: CreateAccountOnlyDTO,
+): Promise<AccountResponse[] | any> => {
+  const response = await fetchData<AccountResponse[] | any>({
+    url: "/accounts/only",
+    method: "POST",
+    body,
+  })
+  return response
+}
+
 /** 🔄 ACTUALIZAR CUENTA (PATCH /accounts/:accountId) */
 export const updateAccount = async (
   accountId: string,
@@ -182,9 +213,7 @@ export const updateProductsByClient = async (
  * GET /accounts/cards/by-client/:clientId
  *  - Se usará para renderizar la lista en la pestaña "Tarjetas"
  */
-export const getCardsByClientId = async (
-  clientId: string,
-): Promise<any> => {
+export const getCardsByClientId = async (clientId: string): Promise<any> => {
   const response = await fetchData<any>({
     url: `/accounts/cards/by-client/${clientId}`,
   })
@@ -213,10 +242,7 @@ export const createCardForAccount = async (
  * PATCH /accounts/cards/:cardId
  *  - Permite cambiar estado, productos, etc.
  */
-export const updateCard = async (
-  cardId: string,
-  body: any,
-): Promise<any> => {
+export const updateCard = async (cardId: string, body: any): Promise<any> => {
   const response = await fetchData<any>({
     url: `/accounts/cards/${cardId}`,
     method: "PATCH",

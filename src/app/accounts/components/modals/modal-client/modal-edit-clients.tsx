@@ -3,13 +3,13 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimatePresence, motion } from "framer-motion"
 import { Save } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 
 import { SidebarEditClient } from "./sidebar-edit-client"
 import { ClientEditInfo } from "./client-edit-info"
 import { ClientAccountsEdit } from "./client-accounts-edit"
-import { ClientCardsEdit } from "./client-cards-edit" // 👈 NUEVO IMPORT
+import { ClientCardsEdit } from "./client-cards-edit"
 
 import { clientTabs } from "@/app/accounts/lib/client-tabs"
 
@@ -19,6 +19,7 @@ import {
 } from "@/app/accounts/schemas/edit-client.schema"
 import { useEditClient } from "@/app/accounts/hooks/useClientsService"
 import { Modals } from "@/app/accounts/types/modals-name"
+import type { ClientResponse } from "@/app/accounts/types/client.type"
 
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -31,7 +32,9 @@ export default function ModalEditClients() {
 
   const dataModal = useModalStore((state) =>
     state.openModals.find((modal) => modal.id === Modals.EDIT_CLIENT),
-  )?.prop as any | undefined
+  )?.prop as ClientResponse | undefined
+
+  const clientId = dataModal?.id
 
   const { mutate, isPending } = useEditClient()
 
@@ -51,26 +54,26 @@ export default function ModalEditClients() {
   })
 
   useEffect(() => {
-    if (dataModal) {
-      form.reset({
-        firstName: dataModal.firstName ?? "",
-        lastName: dataModal.lastName ?? "",
-        address: dataModal.address ?? "",
-        department: dataModal.department ?? "",
-        province: dataModal.province ?? "",
-        district: dataModal.district ?? "",
-        email: dataModal.email ?? "",
-        phone: dataModal.phoneNumber ?? dataModal.phone ?? "",
-      })
-    }
+    if (!dataModal) return
+
+    form.reset({
+      firstName: dataModal.firstName ?? "",
+      lastName: dataModal.lastName ?? "",
+      // 👇 ojo: address en tu ClientResponse real viene dentro de addresses[]
+      // si dataModal.address existe (porque lo estás pasando desde la tabla), lo respetamos:
+      address: (dataModal as any).address ?? "",
+      department: (dataModal as any).department ?? "",
+      province: (dataModal as any).province ?? "",
+      district: (dataModal as any).district ?? "",
+      email: dataModal.email ?? "",
+      phone: (dataModal as any).phoneNumber ?? (dataModal as any).phone ?? "",
+    })
   }, [dataModal, form])
 
-  if (!dataModal) {
-    return null
-  }
+  if (!dataModal) return null
 
   const handleSubmit = (data: EditClientSchema) => {
-    if (!dataModal?.id) {
+    if (!clientId) {
       console.error("Client id not found in modal data")
       return
     }
@@ -84,39 +87,53 @@ export default function ModalEditClients() {
     }
 
     mutate({
-      clientId: dataModal.id,
+      clientId,
       data: payload,
     })
   }
 
   const submitForm = form.handleSubmit(handleSubmit)
 
-  // 👉 Tabs con overrides específicos para edición
-  const editableTabs = clientTabs.map((tab) => {
-    if (tab.id === "misDatos") {
-      return {
-        ...tab,
-        component: <ClientEditInfo client={dataModal} />,
+  // ✅ Tabs con overrides específicos para edición
+  const editableTabs = useMemo(() => {
+    return clientTabs.map((tab) => {
+      if (tab.id === "misDatos") {
+        return {
+          ...tab,
+          component: <ClientEditInfo client={dataModal} />,
+        }
       }
-    }
 
-    if (tab.id === "cuentas") {
-      return {
-        ...tab,
-        component: <ClientAccountsEdit clientId={dataModal.id} />,
+      if (tab.id === "cuentas") {
+        // ✅ Solo renderizar si hay clientId
+        return {
+          ...tab,
+          component: clientId ? (
+            <ClientAccountsEdit clientId={clientId} />
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No se encontró el ID del cliente.
+            </div>
+          ),
+        }
       }
-    }
 
-    // 👇 NUEVO: tab "tarjetas" usando datos reales del backend
-    if (tab.id === "tarjetas") {
-      return {
-        ...tab,
-        component: <ClientCardsEdit clientId={dataModal.id} />,
+      if (tab.id === "tarjetas") {
+        return {
+          ...tab,
+          component: clientId ? (
+            <ClientCardsEdit clientId={clientId} />
+          ) : (
+            <div className="text-sm text-muted-foreground">
+              No se encontró el ID del cliente.
+            </div>
+          ),
+        }
       }
-    }
 
-    return tab
-  })
+      return tab
+    })
+  }, [clientId, dataModal])
 
   return (
     <Modal
@@ -134,11 +151,7 @@ export default function ModalEditClients() {
 
         {/* CONTENIDO */}
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="flex-1 w-full"
-          >
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1">
             <TabsList className="mx-auto mb-6 h-auto w-fit gap-1.5 rounded-xl p-1 md:gap-4">
               {editableTabs.map((tab) => {
                 const isActive = activeTab === tab.id

@@ -6,6 +6,7 @@ import { useModalStore } from "@/shared/store/modal.store"
 import {
   addClient,
   createAccount,
+  createAccountOnly,
   getAccountByClientId,
   getAccountByDocumentNumber,
   getAccountTypes,
@@ -18,7 +19,7 @@ import {
   updateProductsByClient,
 } from "../services/clients.service"
 
-import {
+import type {
   AccountCreateDTO,
   AccountTypeResponse,
   AccountUpdateDTO,
@@ -28,6 +29,8 @@ import {
   SearchClientParams,
   UpdateProductsParams,
 } from "../types/client.type"
+import type { CreateAccountOnlyDTO } from "../services/clients.service"
+
 import { Modals } from "../types/modals-name"
 
 const CLIENTS_QUERY_KEY = ["clients"] as const
@@ -101,7 +104,7 @@ export function useSearchClientBySaleDocument(params: SearchClientParams) {
 export function useGetProductsByAccount(accountId?: string) {
   return useQuery({
     queryKey: ["account-products", accountId],
-    queryFn: () => getProductsByAccount(accountId!, 1), // 👈 enviamos stock=1
+    queryFn: () => getProductsByAccount(accountId!, 1),
     enabled: !!accountId,
   })
 }
@@ -136,7 +139,7 @@ export function useGetAccountByClientId(clientId?: string) {
 }
 
 /* -------------------------------------------
- * 🟢 CREAR CUENTA PARA UN CLIENTE
+ * 🟢 CREAR CUENTA PARA UN CLIENTE (POST /accounts)
  * ---------------------------------------- */
 export function useCreateAccount() {
   const queryClient = useQueryClient()
@@ -156,6 +159,34 @@ export function useCreateAccount() {
     },
     onError() {
       toast.error("No se pudo crear la cuenta")
+    },
+  })
+}
+
+/* -------------------------------------------
+ * 🟢 CREAR CUENTAS "ONLY" (POST /accounts/only)
+ *     ✅ para crear crédito/anticipo/canje desde el modal
+ * ---------------------------------------- */
+export function useCreateAccountOnly() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: ["create-account-only"],
+    mutationFn: (body: CreateAccountOnlyDTO) => createAccountOnly(body),
+
+    onSuccess(_data, variables) {
+      toast.success("Cuentas creadas correctamente")
+
+      const clientId = variables.clientId
+      if (clientId) {
+        queryClient.invalidateQueries({
+          queryKey: ["accounts", "by-client", clientId],
+        })
+      }
+    },
+
+    onError() {
+      toast.error("No se pudieron crear las cuentas")
     },
   })
 }
