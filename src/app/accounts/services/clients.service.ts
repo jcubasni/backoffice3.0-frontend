@@ -1,6 +1,7 @@
 import { ProductResponse } from "@/app/products/types/product.type"
 import { fetchData } from "@/shared/lib/fetch-data"
-import {
+
+import type {
   AccountResponse,
   AccountTypeResponse,
   AccountCreateDTO,
@@ -17,9 +18,7 @@ import {
  * 👤 CLIENTES
  * ---------------------------------------- */
 
-/** 📌 LISTAR CLIENTES (GET /clients)
- *  Lista simple de clientes.
- */
+/** 📌 LISTAR CLIENTES (GET /clients) */
 export const getClients = async (): Promise<ClientResponse[]> => {
   const response = await fetchData<ClientResponse[]>({
     url: "/clients",
@@ -27,22 +26,15 @@ export const getClients = async (): Promise<ClientResponse[]> => {
   return response
 }
 
-/** 📌 OBTENER CLIENTE POR ID (GET /clients/:clientId)
- *  Usado para cargar datos en el modal "Mis Datos".
- */
-export const getClientById = async (
-  clientId: string,
-): Promise<ClientResponse> => {
+/** 📌 OBTENER CLIENTE POR ID (GET /clients/:clientId) */
+export const getClientById = async (clientId: string): Promise<ClientResponse> => {
   const response = await fetchData<ClientResponse>({
     url: `/clients/${clientId}`,
   })
   return response
 }
 
-/** 📌 CREAR CLIENTE + CUENTAS + VEHÍCULOS (POST /accounts)
- *  De momento seguimos usando el endpoint existente
- *  que recibe el DTO grande de ClientDTO.
- */
+/** 📌 CREAR CLIENTE + CUENTAS + VEHÍCULOS (POST /accounts) */
 export const addClient = async (body: ClientDTO): Promise<ClientResponse> => {
   const response = await fetchData<ClientResponse>({
     url: "/accounts",
@@ -52,13 +44,8 @@ export const addClient = async (body: ClientDTO): Promise<ClientResponse> => {
   return response
 }
 
-/** 🔄 ACTUALIZAR CLIENTE (PATCH /clients/:id)
- *  Solo se envían los campos que se quieran editar (ClientUpdateDTO).
- */
-export const updateClient = async (
-  clientId: string,
-  body: ClientUpdateDTO,
-): Promise<any> => {
+/** 🔄 ACTUALIZAR CLIENTE (PATCH /clients/:id) */
+export const updateClient = async (clientId: string, body: ClientUpdateDTO) => {
   const response = await fetchData<any>({
     url: `/clients/${clientId}`,
     method: "PATCH",
@@ -95,9 +82,7 @@ export const getAccountTypes = async (): Promise<AccountTypeResponse[]> => {
 }
 
 /** 📌 OBTENER CUENTAS POR CLIENTE (GET /accounts/by-client/:clientId) */
-export const getAccountByClientId = async (
-  clientId: string,
-): Promise<AccountResponse[]> => {
+export const getAccountByClientId = async (clientId: string): Promise<AccountResponse[]> => {
   const response = await fetchData<AccountResponse[]>({
     url: `/accounts/by-client/${clientId}`,
   })
@@ -105,9 +90,7 @@ export const getAccountByClientId = async (
 }
 
 /** 📌 CREAR CUENTA PARA UN CLIENTE (POST /accounts) */
-export const createAccount = async (
-  body: AccountCreateDTO,
-): Promise<AccountResponse> => {
+export const createAccount = async (body: AccountCreateDTO): Promise<AccountResponse> => {
   const response = await fetchData<AccountResponse>({
     url: "/accounts",
     method: "POST",
@@ -118,9 +101,10 @@ export const createAccount = async (
 
 /** ✅ CREAR CUENTAS "ONLY" PARA UN CLIENTE (POST /accounts/only)
  *  - Sirve para crear 1, 2 o 3 cuentas (crédito/anticipo/canje) para un clientId
- *  - Algunas cuentas pueden no tener formulario (solo accountTypeId)
+ *  - Crédito puede llevar campos extra (línea, días, fechas, etc.)
+ *  - Anticipo / Canje pueden ir solo con accountTypeId
  */
-export type AccountOnlyCreateItem = {
+export type AccountOnlyItemDTO = {
   accountTypeId: number
   creditLine?: number
   balance?: number
@@ -131,40 +115,15 @@ export type AccountOnlyCreateItem = {
   endDate?: string // "YYYY-MM-DD"
 }
 
-export type AccountOnlyItemDTO = {
-  accountTypeId: number
-  creditLine?: number
-  balance?: number
-  billingDays?: number
-  creditDays?: number
-  installments?: number
-  startDate?: string
-  endDate?: string
-}
-
 export type CreateAccountsOnlyDTO = {
   clientId: string
   accounts: AccountOnlyItemDTO[]
 }
 
-export const createAccountsOnly = async (body: CreateAccountsOnlyDTO) => {
-  const response = await fetchData({
-    url: "/accounts/only",
-    method: "POST",
-    body,
-  })
-  return response
-}
-
-export type CreateAccountOnlyDTO = {
-  clientId: string
-  accounts: AccountOnlyCreateItem[]
-}
-
-export const createAccountOnly = async (
-  body: CreateAccountOnlyDTO,
-): Promise<AccountResponse[] | any> => {
-  const response = await fetchData<AccountResponse[] | any>({
+export const createAccountsOnly = async (
+  body: CreateAccountsOnlyDTO,
+): Promise<AccountResponse[]> => {
+  const response = await fetchData<AccountResponse[]>({
     url: "/accounts/only",
     method: "POST",
     body,
@@ -189,7 +148,7 @@ export const updateAccount = async (
 export const getAccountByDocumentNumber = async (
   documentNumber: string,
   documentTypeId: number,
-) => {
+): Promise<AccountResponse> => {
   const response = await fetchData<AccountResponse>({
     url: `/accounts/by-document`,
     params: {
@@ -211,16 +170,13 @@ export const getProductsByAccount = async (
 ): Promise<ProductResponse[]> => {
   const response = await fetchData<ProductResponse[]>({
     url: `/accounts/${accountId}/products`,
-    params: stock ? { stock } : undefined, // 👈 evitamos mandar undefined raro
+    params: stock ? { stock } : undefined,
   })
   return response
 }
 
 /** 🔄 ACTUALIZAR PRODUCTOS POR CLIENTE EN UNA CUENTA (PATCH /accounts/:id/products) */
-export const updateProductsByClient = async (
-  accountId: string,
-  body: UpdateProductsByClient,
-) => {
+export const updateProductsByClient = async (accountId: string, body: UpdateProductsByClient) => {
   const response = await fetchData({
     url: `/accounts/${accountId}/products`,
     method: "PATCH",
@@ -233,11 +189,7 @@ export const updateProductsByClient = async (
  * 💳 TARJETAS DEL CLIENTE
  * ---------------------------------------- */
 
-/**
- * 📌 LISTAR TARJETAS POR CLIENTE
- * GET /accounts/cards/by-client/:clientId
- *  - Se usará para renderizar la lista en la pestaña "Tarjetas"
- */
+/** 📌 LISTAR TARJETAS POR CLIENTE (GET /accounts/cards/by-client/:clientId) */
 export const getCardsByClientId = async (clientId: string): Promise<any> => {
   const response = await fetchData<any>({
     url: `/accounts/cards/by-client/${clientId}`,
@@ -245,15 +197,8 @@ export const getCardsByClientId = async (clientId: string): Promise<any> => {
   return response
 }
 
-/**
- * 📌 CREAR TARJETA PARA UNA CUENTA
- * POST /accounts/cards/:accountId
- *  - Crea una nueva tarjeta asociada a una cuenta (crédito / anticipo / canje)
- */
-export const createCardForAccount = async (
-  accountId: string,
-  body: any,
-): Promise<any> => {
+/** 📌 CREAR TARJETA PARA UNA CUENTA (POST /accounts/cards/:accountId) */
+export const createCardForAccount = async (accountId: string, body: any): Promise<any> => {
   const response = await fetchData<any>({
     url: `/accounts/cards/${accountId}`,
     method: "POST",
@@ -262,11 +207,7 @@ export const createCardForAccount = async (
   return response
 }
 
-/**
- * 🔄 ACTUALIZAR TARJETA
- * PATCH /accounts/cards/:cardId
- *  - Permite cambiar estado, productos, etc.
- */
+/** 🔄 ACTUALIZAR TARJETA (PATCH /accounts/cards/:cardId) */
 export const updateCard = async (cardId: string, body: any): Promise<any> => {
   const response = await fetchData<any>({
     url: `/accounts/cards/${cardId}`,
@@ -276,14 +217,8 @@ export const updateCard = async (cardId: string, body: any): Promise<any> => {
   return response
 }
 
-/**
- * 💰 ASIGNAR SALDO A UNA TARJETA
- * POST /accounts/cards/:accountId/assign-balance
- */
-export const assignCardBalance = async (
-  accountId: string,
-  body: any,
-): Promise<any> => {
+/** 💰 ASIGNAR SALDO A UNA TARJETA (POST /accounts/cards/:accountId/assign-balance) */
+export const assignCardBalance = async (accountId: string, body: any): Promise<any> => {
   const response = await fetchData<any>({
     url: `/accounts/cards/${accountId}/assign-balance`,
     method: "POST",
@@ -291,3 +226,35 @@ export const assignCardBalance = async (
   })
   return response
 }
+export type ApiResponse<T> = {
+  success: boolean
+  message: string
+  data?: T
+}
+
+export type CreateClientBody = {
+  documentTypeId: number
+  firstName: string
+  documentNumber: string
+  lastName?: string
+  email?: string
+  phone?: string
+  dateOfBirth?: string
+  address?: {
+    addressLine1: string
+    street?: string
+    number?: string
+    postalCode?: string
+    districtId?: string
+    reference?: string
+  }
+}
+
+export const createClient = async (body: CreateClientBody): Promise<string> => {
+  return fetchData<string>({
+    url: "/clients",
+    method: "POST",
+    body,
+  })
+}
+

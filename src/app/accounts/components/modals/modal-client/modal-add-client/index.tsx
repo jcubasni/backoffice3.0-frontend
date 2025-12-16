@@ -1,17 +1,18 @@
 "use client"
 
+import type React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimatePresence, motion } from "framer-motion"
-import { Save } from "lucide-react"
+import { CheckCircle2, Save } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
 import { useAddClient } from "@/app/accounts/hooks/useClientsService"
-import { mapCreateClientSchemaToClientDTO } from "@/app/accounts/lib/client-mapper"
 import { clientTabs } from "@/app/accounts/lib/client-tabs"
+import { mapCreateClientSchemaToCreateClientBody } from "@/app/accounts/lib/client-create.mapper"
 import {
-  CreateClientSchema,
+  type CreateClientSchema,
   createClientSchema,
 } from "@/app/accounts/schemas/create-client.schema"
 import { Modals } from "@/app/accounts/types/modals-name"
@@ -24,17 +25,32 @@ import Modal from "@/shared/components/ui/modal"
 import { useModalStore } from "@/shared/store/modal.store"
 
 import { Sidebar } from "./sidebar-client"
+import { ClientAccountsEdit } from "../client-accounts-edit"
 import { ClientCardsEdit } from "../client-cards-edit"
+
+function BlockedTabCard({
+  title,
+  message,
+}: {
+  title: string
+  message: React.ReactNode
+}) {
+  return (
+    <div className="flex-1 space-y-4 px-2">
+      <h2 className="text-xl font-semibold text-foreground">{title}</h2>
+      <Card className="bg-sidebar/60 p-6">
+        <p className="text-sm text-muted-foreground">{message}</p>
+      </Card>
+    </div>
+  )
+}
 
 export default function ModalAddClient() {
   const [activeTab, setActiveTab] = useState("misDatos")
-
-  // ✅ cuando se cree el cliente, guardamos su id aquí
   const [createdClientId, setCreatedClientId] = useState<string | null>(null)
 
   const addClient = useAddClient()
 
-  // ✅ para detectar apertura/cierre del modal y resetear estado
   const isOpen = useModalStore((state) =>
     state.openModals.some((m) => m.id === Modals.ADD_CLIENT),
   )
@@ -44,86 +60,114 @@ export default function ModalAddClient() {
     mode: "onChange",
   })
 
-  // ✅ Reset limpio cada vez que se abre el modal
   useEffect(() => {
     if (!isOpen) return
-
     setActiveTab("misDatos")
     setCreatedClientId(null)
     form.reset()
-  }, [isOpen, form])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen])
 
-  // 🔁 tabs: en "tarjetas" mostramos real si ya existe clientId
   const tabsForAdd = useMemo(() => {
     return clientTabs.map((tab) => {
-      if (tab.id !== "tarjetas") return tab
+      // ✅ Cuentas
+      if (tab.id === "cuentas") {
+        if (createdClientId) {
+          return {
+            ...tab,
+            component: <ClientAccountsEdit clientId={createdClientId} />,
+          }
+        }
 
-      // ✅ Cliente ya creado → UI REAL
-      if (createdClientId) {
         return {
           ...tab,
-          component: <ClientCardsEdit clientId={createdClientId} />,
+          component: (
+            <BlockedTabCard
+              title="Cuentas"
+              message={
+                <>
+                  Para crear cuentas primero debes{" "}
+                  <span className="font-semibold">guardar el cliente</span>.
+                </>
+              }
+            />
+          ),
         }
       }
 
-      // ❗ Cliente no creado → placeholder
-      return {
-        ...tab,
-        component: (
-          <div className="flex-1 space-y-4 px-2">
-            <h2 className="text-xl font-semibold text-foreground">
-              Tarjetas del cliente
-            </h2>
+      // ✅ Tarjetas
+      if (tab.id === "tarjetas") {
+        if (createdClientId) {
+          return {
+            ...tab,
+            component: <ClientCardsEdit clientId={createdClientId} />,
+          }
+        }
 
-            <Card className="bg-sidebar/60 p-6">
-              <p className="text-sm text-muted-foreground">
-                Para gestionar tarjetas primero debes{" "}
-                <span className="font-semibold">guardar el cliente</span>. <br />
-                Luego podrás seleccionar una cuenta y crear tarjetas.
-              </p>
-            </Card>
-          </div>
-        ),
+        return {
+          ...tab,
+          component: (
+            <BlockedTabCard
+              title="Tarjetas del cliente"
+              message={
+                <>
+                  Para gestionar tarjetas primero debes{" "}
+                  <span className="font-semibold">guardar el cliente</span>.
+                  <br />
+                  Luego podrás seleccionar una cuenta y crear tarjetas.
+                </>
+              }
+            />
+          ),
+        }
       }
+
+      return tab
     })
   }, [createdClientId])
 
   const handleSubmit = (data: CreateClientSchema) => {
-    const clientDTO = mapCreateClientSchemaToClientDTO(data)
+    // ✅ si ya está creado, no vuelvas a crear
+    if (createdClientId) {
+      toast.info("El cliente ya está guardado.")
+      return
+    }
 
-    addClient.mutate(clientDTO, {
-      onSuccess: (created: any) => {
-        // ✅ intenta encontrar el id de forma tolerante
-        const newId =
-          created?.id ??
-          created?.clientId ??
-          created?.idClient ??
-          created?.data?.id ??
-          created?.data?.clientId
+    const body = mapCreateClientSchemaToCreateClientBody(data)
 
-        if (!newId) {
-          toast.error("Se creó el cliente pero no llegó el id.")
-          return
-        }
-
-        toast.success("Cliente guardado. Ahora puedes gestionar tarjetas.")
-        setCreatedClientId(String(newId))
-        setActiveTab("tarjetas")
+    addClient.mutate(
+      {
+        body,
+        documentTypeId: body.documentTypeId,
+        documentNumber: body.documentNumber,
       },
-      onError: () => {
-        toast.error("No se pudo guardar el cliente")
+      {
+        onSuccess: ({ clientId }) => {
+          setCreatedClientId(clientId)
+          toast.success("Cliente creado. Ahora puedes crear cuentas y tarjetas.")
+          setActiveTab("cuentas")
+        },
+        onError: (err: any) => {
+          toast.error(err?.message ?? "No se pudo registrar el cliente")
+        },
       },
-    })
+    )
   }
 
   const handleTabChange = (tabId: string) => {
-    // ✅ no dejes entrar a Tarjetas si aún no guardó el cliente
-    if (tabId === "tarjetas" && !createdClientId) {
-      toast.info("Primero guarda el cliente para gestionar tarjetas")
+    // ⛔ bloquear navegación mientras se crea
+    if (addClient.isPending) return
+
+    // ⛔ bloquear Cuentas/Tarjetas si aún no hay cliente
+    if ((tabId === "cuentas" || tabId === "tarjetas") && !createdClientId) {
+      toast.info("Primero guarda el cliente para continuar")
       return
     }
+
     setActiveTab(tabId)
   }
+
+  const isSaved = !!createdClientId
 
   return (
     <Modal
@@ -138,8 +182,42 @@ export default function ModalAddClient() {
       >
         <Sidebar />
 
-        <main className="flex h-full flex-1 px-1 py-6 md:p-6">
-          <Tabs value={activeTab} onValueChange={handleTabChange} className="flex-1 w-full gap-4">
+        <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
+          {/* Estado */}
+          <div className="mb-4 flex items-center justify-between gap-2 px-2">
+            <div className="text-sm text-muted-foreground">
+              Estado:{" "}
+              {isSaved ? (
+                <span className="inline-flex items-center gap-1 font-semibold text-foreground">
+                  <CheckCircle2 className="size-4" /> Guardado
+                </span>
+              ) : (
+                <span className="font-semibold text-foreground">No guardado</span>
+              )}
+            </div>
+
+            {/* Botón guardar (desktop) */}
+            <div className="hidden lg:block">
+              <Button
+                type="submit"
+                disabled={addClient.isPending || isSaved}
+                variant={isSaved ? "outline" : "default"}
+              >
+                <Save className="size-4" />
+                {isSaved
+                  ? "Cliente guardado"
+                  : addClient.isPending
+                    ? "Guardando..."
+                    : "Guardar cliente"}
+              </Button>
+            </div>
+          </div>
+
+          <Tabs
+            value={activeTab}
+            onValueChange={handleTabChange}
+            className="flex-1 w-full gap-4"
+          >
             <TabsList className="mx-auto mb-6 h-auto w-fit justify-start gap-1.5 rounded-xl p-1 md:gap-4">
               {tabsForAdd.map((tab) => {
                 const isActive = activeTab === tab.id
@@ -189,7 +267,9 @@ export default function ModalAddClient() {
               >
                 {tab.component || (
                   <div className="flex h-full flex-col items-center justify-center gap-2 py-12">
-                    <p className="text-sm text-slate-500">Contenido no disponible</p>
+                    <p className="text-sm text-slate-500">
+                      Contenido no disponible
+                    </p>
                   </div>
                 )}
               </TabsContent>
@@ -199,12 +279,22 @@ export default function ModalAddClient() {
 
         {/* Botón guardar (mobile) */}
         <div className="w-full px-4 pb-4 lg:hidden">
-          <Button type="submit" className="w-full" disabled={addClient.isPending}>
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={addClient.isPending || isSaved}
+            variant={isSaved ? "outline" : "default"}
+          >
             <Save className="size-4" />
-            {addClient.isPending ? "Guardando..." : "Guardar cliente"}
+            {isSaved
+              ? "Cliente guardado"
+              : addClient.isPending
+                ? "Guardando..."
+                : "Guardar cliente"}
           </Button>
         </div>
       </FormWrapper>
     </Modal>
   )
 }
+

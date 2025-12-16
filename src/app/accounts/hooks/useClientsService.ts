@@ -1,36 +1,44 @@
+// src/app/accounts/hooks/useClientsService.ts
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 
 import { useModalStore } from "@/shared/store/modal.store"
+import { ErrorResponse } from "@/shared/errors/error-response"
 
 import {
-  addClient,
+  // ✅ CLIENTS
+  createClient,
+  getClientById,
+  getClients,
+  searchClientBySaleDocument,
+  updateClient,
+
+  // ✅ ACCOUNTS
   createAccount,
-  createAccountOnly,
+  createAccountsOnly,
   getAccountByClientId,
   getAccountByDocumentNumber,
   getAccountTypes,
-  getClientById,
-  getClients,
-  getProductsByAccount,
-  searchClientBySaleDocument,
   updateAccount,
-  updateClient,
+
+  // ✅ PRODUCTS BY ACCOUNT
+  getProductsByAccount,
   updateProductsByClient,
 } from "../services/clients.service"
 
 import type {
   AccountCreateDTO,
+  AccountResponse,
   AccountTypeResponse,
   AccountUpdateDTO,
-  ClientDTO,
   ClientResponse,
+  ClientSearch,
   ClientUpdateDTO,
   SearchClientParams,
   UpdateProductsParams,
 } from "../types/client.type"
-import type { CreateAccountOnlyDTO } from "../services/clients.service"
 
+import type { CreateAccountsOnlyDTO, CreateClientBody } from "../services/clients.service"
 import { Modals } from "../types/modals-name"
 
 const CLIENTS_QUERY_KEY = ["clients"] as const
@@ -57,7 +65,7 @@ export function useGetAccountTypes() {
 }
 
 /* -------------------------------------------
- * 🟢 OBTENER CLIENTE POR ID (para Mis Datos)
+ * 🟢 OBTENER CLIENTE POR ID (GET /clients/:id)
  * ---------------------------------------- */
 export function useGetClientById(clientId?: string) {
   return useQuery<ClientResponse>({
@@ -68,21 +76,63 @@ export function useGetClientById(clientId?: string) {
 }
 
 /* -------------------------------------------
- * 🟢 CREAR CLIENTE
+ * 🟢 CREAR CLIENTE (POST /clients)
+ * ✅ Devuelve { clientId } resolviendo id desde GET /clients
  * ---------------------------------------- */
+type AddClientVars = {
+  body: CreateClientBody
+  documentTypeId: number
+  documentNumber: string
+}
+
+type AddClientResult = {
+  clientId: string
+}
+
 export function useAddClient() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationKey: ["add-client"],
-    mutationFn: (params: ClientDTO) => addClient(params),
-    onSuccess: () => {
-      toast.success("Se agregó el cliente")
-      queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      useModalStore.getState().closeModal(Modals.ADD_CLIENT)
+  return useMutation<AddClientResult, unknown, AddClientVars>({
+    mutationKey: ["create-client"],
+
+    mutationFn: async ({ body, documentTypeId, documentNumber }) => {
+      // 1) Crear cliente
+      await createClient(body)
+
+      // 2) Traer lista fresca (así no dependemos de invalidate timing)
+      const clients = await queryClient.fetchQuery({
+        queryKey: CLIENTS_QUERY_KEY,
+        queryFn: getClients,
+      })
+
+      // 3) Resolver id por docType + docNumber
+      const found = clients.find(
+        (c) => c.documentNumber === documentNumber && c.documentType?.id === documentTypeId,
+      )
+
+      if (!found?.id) {
+        throw new Error(
+          "Se creó el cliente pero no se pudo resolver el ID. (El POST no devuelve id y no se encontró en GET /clients).",
+        )
+      }
+
+      return { clientId: found.id }
     },
-    onError: () => {
-      toast.error("No se pudo registrar el cliente")
+
+    onSuccess: () => {
+      toast.success("Cliente guardado")
+      queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
+      // ❗ NO cerrar modal aquí
+    },
+
+    onError: (err: any) => {
+      // Si viene de fetchData -> ErrorResponse(message,status)
+      const msg =
+        err instanceof ErrorResponse
+          ? err.message
+          : err?.message ?? "No se pudo registrar el cliente"
+
+      toast.error(msg)
     },
   })
 }
@@ -91,7 +141,7 @@ export function useAddClient() {
  * 🟢 BUSCAR CLIENTE PARA VENTA
  * ---------------------------------------- */
 export function useSearchClientBySaleDocument(params: SearchClientParams) {
-  return useQuery({
+  return useQuery<ClientSearch[]>({
     queryKey: ["search-client", "by-sale-document", params],
     queryFn: () => searchClientBySaleDocument(params),
     enabled: params.saleDocumentTypeId !== undefined && !!params.paymentTypeId,
@@ -131,7 +181,7 @@ export function useUpdateProductsByClient() {
  * 🟢 CUENTAS POR CLIENTE
  * ---------------------------------------- */
 export function useGetAccountByClientId(clientId?: string) {
-  return useQuery({
+  return useQuery<AccountResponse[]>({
     queryKey: ["accounts", "by-client", clientId],
     queryFn: () => getAccountByClientId(clientId!),
     enabled: !!clientId,
@@ -148,13 +198,11 @@ export function useCreateAccount() {
     mutationKey: ["create-account"],
     mutationFn: (body: AccountCreateDTO) => createAccount(body),
     onSuccess(_data, variables) {
-      const clientId = variables.clientId
       toast.success("Cuenta creada correctamente")
 
+      const clientId = variables.clientId
       if (clientId) {
-        queryClient.invalidateQueries({
-          queryKey: ["accounts", "by-client", clientId],
-        })
+        queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", clientId] })
       }
     },
     onError() {
@@ -165,23 +213,20 @@ export function useCreateAccount() {
 
 /* -------------------------------------------
  * 🟢 CREAR CUENTAS "ONLY" (POST /accounts/only)
- *     ✅ para crear crédito/anticipo/canje desde el modal
  * ---------------------------------------- */
 export function useCreateAccountOnly() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ["create-account-only"],
-    mutationFn: (body: CreateAccountOnlyDTO) => createAccountOnly(body),
+    mutationFn: (body: CreateAccountsOnlyDTO) => createAccountsOnly(body),
 
     onSuccess(_data, variables) {
       toast.success("Cuentas creadas correctamente")
 
       const clientId = variables.clientId
       if (clientId) {
-        queryClient.invalidateQueries({
-          queryKey: ["accounts", "by-client", clientId],
-        })
+        queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", clientId] })
       }
     },
 
@@ -210,14 +255,10 @@ export function useUpdateAccount() {
     }) => updateAccount(accountId, data),
 
     onSuccess(_data, variables) {
-      const { clientId } = variables
       toast.success("Cuenta actualizada correctamente")
 
-      if (clientId) {
-        queryClient.invalidateQueries({
-          queryKey: ["accounts", "by-client", clientId],
-        })
-      }
+      const clientId = variables.clientId
+      queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", clientId] })
     },
 
     onError() {
@@ -262,8 +303,7 @@ export function useEditClient() {
 
       await queryClient.cancelQueries({ queryKey: CLIENTS_QUERY_KEY })
 
-      const previousClients =
-        queryClient.getQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY)
+      const previousClients = queryClient.getQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY)
 
       queryClient.setQueryData<ClientResponse[]>(CLIENTS_QUERY_KEY, (old) => {
         if (!old) return old
@@ -280,9 +320,7 @@ export function useEditClient() {
           }
 
           if (client.addresses && client.addresses.length > 0) {
-            const primary =
-              client.addresses.find((addr) => addr.isPrimary) ??
-              client.addresses[0]
+            const primary = client.addresses.find((a) => a.isPrimary) ?? client.addresses[0]
 
             const updatedPrimary = {
               ...primary,
@@ -313,8 +351,8 @@ export function useEditClient() {
 
     onSuccess(_data, variables) {
       const { clientId } = variables
-
       toast.success("Cliente actualizado correctamente")
+
       queryClient.invalidateQueries({ queryKey: ["client", clientId] })
       queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
 
