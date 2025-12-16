@@ -131,6 +131,31 @@ export type AccountOnlyCreateItem = {
   endDate?: string // "YYYY-MM-DD"
 }
 
+export type AccountOnlyItemDTO = {
+  accountTypeId: number
+  creditLine?: number
+  balance?: number
+  billingDays?: number
+  creditDays?: number
+  installments?: number
+  startDate?: string
+  endDate?: string
+}
+
+export type CreateAccountsOnlyDTO = {
+  clientId: string
+  accounts: AccountOnlyItemDTO[]
+}
+
+export const createAccountsOnly = async (body: CreateAccountsOnlyDTO) => {
+  const response = await fetchData({
+    url: "/accounts/only",
+    method: "POST",
+    body,
+  })
+  return response
+}
+
 export type CreateAccountOnlyDTO = {
   clientId: string
   accounts: AccountOnlyCreateItem[]

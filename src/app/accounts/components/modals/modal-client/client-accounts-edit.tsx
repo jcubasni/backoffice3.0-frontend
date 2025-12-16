@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { AnimatePresence, LayoutGroup, motion } from "framer-motion"
+import { Plus, Trash2 } from "lucide-react"
 
 import {
   Accordion,
@@ -10,12 +12,11 @@ import {
 } from "@/components/ui/accordion"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/shared/lib/number"
 import { formatDate } from "@/shared/lib/date"
 import { TooltipButton } from "@/shared/components/ui/tooltip-button"
-import { Button } from "@/components/ui/button"
-import { Trash2 } from "lucide-react"
 
 import {
   useCreateAccountOnly,
@@ -35,7 +36,6 @@ type ClientAccountsEditProps = {
   clientId: string
 }
 
-// Campos editables para una cuenta (existente)
 type EditableFields = {
   creditLine?: number
   balance?: number
@@ -46,7 +46,6 @@ type EditableFields = {
   endDate?: string
 }
 
-// Campos para crear cuenta nueva (ONLY) - solo se usa en crédito
 type NewAccountDraft = {
   creditLine?: number
   billingDays?: number
@@ -61,25 +60,16 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   const { data: accountTypes, isLoading: isLoadingTypes } = useGetAccountTypes()
 
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount()
-  const { mutate: createAccountOnly, isPending: isCreating } =
-    useCreateAccountOnly()
+  const { mutate: createAccountOnly, isPending: isCreating } = useCreateAccountOnly()
 
-  // 🔽 acordeones cerrados al inicio
   const [openItem, setOpenItem] = useState<string | undefined>(undefined)
 
-  // 🔄 estado local de edición por cuenta existente
   const [editedAccounts, setEditedAccounts] = useState<Record<string, EditableFields>>({})
 
-  // ✅ selección de cuentas nuevas a crear
-  const [selectedToCreate, setSelectedToCreate] = useState<
-    Record<AccountTypeForClient, boolean>
-  >({
-    [AccountTypeForClient.CREDIT]: false,
-    [AccountTypeForClient.ANTICIPO]: false,
-    [AccountTypeForClient.CANJE]: false,
-  })
+  // ✅ cuentas nuevas a crear en este modal (solo faltantes)
+  const [toCreate, setToCreate] = useState<AccountTypeForClient[]>([])
 
-  // ✅ draft de formulario SOLO para crédito (cuenta nueva)
+  // ✅ draft solo para crédito (cuando vas a CREAR crédito)
   const [newCreditDraft, setNewCreditDraft] = useState<NewAccountDraft>({
     creditLine: undefined,
     billingDays: undefined,
@@ -94,7 +84,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   // -----------------------------------
   // helpers
   // -----------------------------------
-
   const existingTypeIds = useMemo(() => {
     const set = new Set<number>()
     ;(accounts ?? []).forEach((a) => {
@@ -104,23 +93,42 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     return set
   }, [accounts])
 
-  const findAccountTypeId = (type: AccountTypeForClient) => {
-    // buscamos el id real desde /accounts/types (por si cambia)
-    const found = accountTypes?.find((t) => t.id === type)
-    return found?.id
+  const availableButtons = useMemo(() => {
+    const valid = Object.values(AccountTypeForClient)
+
+    // Tomamos la data de /accounts/types para mostrar label real (name)
+    const fromApi = (accountTypes ?? []).filter((t) => valid.includes(t.id as any))
+
+    // Nos quedamos con los que NO existen aún en backend y NO están ya en toCreate
+    return fromApi
+      .filter((t) => !existingTypeIds.has(t.id))
+      .map((t) => ({
+        id: t.id as AccountTypeForClient,
+        label: t.name,
+        styles: AccountTypeStyles[t.id as AccountTypeForClient],
+      }))
+  }, [accountTypes, existingTypeIds])
+
+  const addToCreate = (type: AccountTypeForClient) => {
+    if (existingTypeIds.has(type)) return
+    if (toCreate.includes(type)) return
+    setToCreate((prev) => [...prev, type])
   }
 
-  const canSelectType = (type: AccountTypeForClient) => {
-    // si ya existe en backend, no permitir seleccionar para crear
-    return !existingTypeIds.has(type)
-  }
+  const removeToCreate = (type: AccountTypeForClient) => {
+    setToCreate((prev) => prev.filter((t) => t !== type))
 
-  const toggleSelect = (type: AccountTypeForClient) => {
-    if (!canSelectType(type)) return
-    setSelectedToCreate((prev) => ({
-      ...prev,
-      [type]: !prev[type],
-    }))
+    // si removemos crédito, limpiamos draft (opcional)
+    if (type === AccountTypeForClient.CREDIT) {
+      setNewCreditDraft({
+        creditLine: undefined,
+        billingDays: undefined,
+        creditDays: undefined,
+        installments: undefined,
+        startDate: "",
+        endDate: "",
+      })
+    }
   }
 
   const handleChangeField = (
@@ -154,7 +162,8 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
       return (edited as string | undefined) ?? original ?? ""
     }
 
-    const originalNumber = (account as any)[field] !== undefined ? (account as any)[field] : ""
+    const originalNumber =
+      (account as any)[field] !== undefined ? (account as any)[field] : ""
     return edited !== undefined ? String(edited) : String(originalNumber ?? "")
   }
 
@@ -183,51 +192,31 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   }
 
   // -----------------------------------
-  // ✅ crear cuentas nuevas (ONLY)
+  // ✅ POST /accounts/only (crear faltantes)
   // -----------------------------------
   const handleSaveNewAccounts = () => {
-    const selectedTypes = Object.entries(selectedToCreate)
-      .filter(([_, v]) => v)
-      .map(([k]) => Number(k) as AccountTypeForClient)
+    if (toCreate.length === 0) return
 
-    if (selectedTypes.length === 0) return
-
-    const payloadAccounts = selectedTypes
-      .map((type) => {
-        const accountTypeId = findAccountTypeId(type)
-        if (!accountTypeId) return null
-
-        if (type === AccountTypeForClient.CREDIT) {
-          return {
-            accountTypeId,
-            creditLine: newCreditDraft.creditLine,
-            billingDays: newCreditDraft.billingDays,
-            creditDays: newCreditDraft.creditDays,
-            installments: newCreditDraft.installments,
-            startDate: newCreditDraft.startDate || undefined,
-            endDate: newCreditDraft.endDate || undefined,
-          }
+    const payloadAccounts = toCreate.map((type) => {
+      if (type === AccountTypeForClient.CREDIT) {
+        return {
+          accountTypeId: type,
+          creditLine: newCreditDraft.creditLine,
+          billingDays: newCreditDraft.billingDays,
+          creditDays: newCreditDraft.creditDays,
+          installments: newCreditDraft.installments,
+          startDate: newCreditDraft.startDate || undefined,
+          endDate: newCreditDraft.endDate || undefined,
         }
-
-        // anticipo / canje sin formulario
-        return { accountTypeId }
-      })
-      .filter(Boolean) as any[]
-
-    if (payloadAccounts.length === 0) return
+      }
+      return { accountTypeId: type }
+    })
 
     createAccountOnly(
-      {
-        clientId,
-        accounts: payloadAccounts,
-      },
+      { clientId, accounts: payloadAccounts as any[] },
       {
         onSuccess: () => {
-          setSelectedToCreate({
-            [AccountTypeForClient.CREDIT]: false,
-            [AccountTypeForClient.ANTICIPO]: false,
-            [AccountTypeForClient.CANJE]: false,
-          })
+          setToCreate([])
           setNewCreditDraft({
             creditLine: undefined,
             billingDays: undefined,
@@ -275,7 +264,8 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
           <AccordionContent className="border-t border-border px-4 pb-4 pt-3">
             <div className="mb-4 space-y-1 text-sm">
               <p className="text-muted-foreground">
-                N° documento: <span className="text-foreground">{account.documentNumber}</span>
+                N° documento:{" "}
+                <span className="text-foreground">{account.documentNumber}</span>
               </p>
               <p className="text-muted-foreground">
                 Cliente: <span className="text-foreground">{account.clientName}</span>
@@ -369,11 +359,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                     Gestionar tarjetas
                   </Button>
 
-                  <Button
-                    type="button"
-                    onClick={() => handleSaveAccount(account)}
-                    disabled={isUpdating}
-                  >
+                  <Button type="button" onClick={() => handleSaveAccount(account)} disabled={isUpdating}>
                     Guardar
                   </Button>
                 </div>
@@ -418,182 +404,223 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     )
   }
 
-  const CreateAccountsHeader = () => {
-    const creditDisabled = !canSelectType(AccountTypeForClient.CREDIT)
-    const anticipoDisabled = !canSelectType(AccountTypeForClient.ANTICIPO)
-    const canjeDisabled = !canSelectType(AccountTypeForClient.CANJE)
+  // -----------------------------------
+  // ✅ UI “Nuevo style” para crear faltantes
+  // -----------------------------------
+  const renderToCreateCard = (type: AccountTypeForClient) => {
+    const styles = AccountTypeStyles[type]
+    const label =
+      type === AccountTypeForClient.CREDIT
+        ? "Crédito"
+        : type === AccountTypeForClient.ANTICIPO
+          ? "Anticipo"
+          : "Canje"
 
-    const anySelected =
-      selectedToCreate[AccountTypeForClient.CREDIT] ||
-      selectedToCreate[AccountTypeForClient.ANTICIPO] ||
-      selectedToCreate[AccountTypeForClient.CANJE]
+    const hasForm = type === AccountTypeForClient.CREDIT
 
     return (
-      <Card className="bg-sidebar/40 p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-semibold text-foreground">Crear cuentas</p>
-            <p className="text-xs text-muted-foreground">
-              Selecciona crédito, anticipo o canje para crear cuentas faltantes.
-            </p>
-          </div>
+      <motion.div key={type} layoutId={`to-create-${type}`} className="overflow-hidden">
+        <Card className="overflow-hidden bg-sidebar/60">
+          {hasForm ? (
+            <Accordion type="single" collapsible>
+              <AccordionItem value={`create-${type}`} className="border-none">
+                <div className="flex items-center justify-between bg-inherit p-4">
+                  <AccordionTrigger className="flex-1 py-0 hover:no-underline">
+                    <div className="flex items-center gap-3">
+                      <div className={cn("h-3 w-3 rounded", styles.color)} />
+                      <span className="font-semibold text-foreground">Cuenta {label}</span>
+                    </div>
+                  </AccordionTrigger>
 
-          <Button
-            type="button"
-            onClick={handleSaveNewAccounts}
-            disabled={!anySelected || isCreating || isLoadingTypes}
-          >
-            Guardar cuentas
-          </Button>
-        </div>
+                  <TooltipButton
+                    icon={Trash2}
+                    tooltip="Quitar"
+                    onClick={() => removeToCreate(type)}
+                  />
+                </div>
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant={selectedToCreate[AccountTypeForClient.CREDIT] ? "default" : "outline"}
-            onClick={() => toggleSelect(AccountTypeForClient.CREDIT)}
-            disabled={creditDisabled || isLoadingTypes}
-          >
-            {creditDisabled ? "Crédito (ya creado)" : "Crédito"}
-          </Button>
+                <AccordionContent>
+                  <div className="space-y-6 border-t border-border p-6">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1">
+                        <label className="text-sm text-muted-foreground">Línea de crédito</label>
+                        <Input
+                          type="number"
+                          value={newCreditDraft.creditLine ?? ""}
+                          onChange={(e) =>
+                            setNewCreditDraft((p) => ({
+                              ...p,
+                              creditLine: e.target.value === "" ? undefined : Number(e.target.value),
+                            }))
+                          }
+                        />
+                      </div>
 
-          <Button
-            type="button"
-            variant={selectedToCreate[AccountTypeForClient.ANTICIPO] ? "default" : "outline"}
-            onClick={() => toggleSelect(AccountTypeForClient.ANTICIPO)}
-            disabled={anticipoDisabled || isLoadingTypes}
-          >
-            {anticipoDisabled ? "Anticipo (ya creado)" : "Anticipo"}
-          </Button>
+                      <div className="space-y-1">
+                        <label className="text-sm text-muted-foreground">Días de facturación</label>
+                        <Input
+                          type="number"
+                          value={newCreditDraft.billingDays ?? ""}
+                          onChange={(e) =>
+                            setNewCreditDraft((p) => ({
+                              ...p,
+                              billingDays: e.target.value === "" ? undefined : Number(e.target.value),
+                            }))
+                          }
+                        />
+                      </div>
 
-          <Button
-            type="button"
-            variant={selectedToCreate[AccountTypeForClient.CANJE] ? "default" : "outline"}
-            onClick={() => toggleSelect(AccountTypeForClient.CANJE)}
-            disabled={canjeDisabled || isLoadingTypes}
-          >
-            {canjeDisabled ? "Canje (ya creado)" : "Canje"}
-          </Button>
-        </div>
+                      <div className="space-y-1">
+                        <label className="text-sm text-muted-foreground">Días de crédito</label>
+                        <Input
+                          type="number"
+                          value={newCreditDraft.creditDays ?? ""}
+                          onChange={(e) =>
+                            setNewCreditDraft((p) => ({
+                              ...p,
+                              creditDays: e.target.value === "" ? undefined : Number(e.target.value),
+                            }))
+                          }
+                        />
+                      </div>
 
-        {selectedToCreate[AccountTypeForClient.CREDIT] && (
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <div className="space-y-1">
-              <label className="text-sm text-muted-foreground">Línea de crédito</label>
-              <Input
-                type="number"
-                value={newCreditDraft.creditLine ?? ""}
-                onChange={(e) =>
-                  setNewCreditDraft((p) => ({
-                    ...p,
-                    creditLine: e.target.value === "" ? undefined : Number(e.target.value),
-                  }))
-                }
-              />
+                      <div className="space-y-1">
+                        <label className="text-sm text-muted-foreground">Cuotas</label>
+                        <Input
+                          type="number"
+                          value={newCreditDraft.installments ?? ""}
+                          onChange={(e) =>
+                            setNewCreditDraft((p) => ({
+                              ...p,
+                              installments: e.target.value === "" ? undefined : Number(e.target.value),
+                            }))
+                          }
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-sm text-muted-foreground">Fecha de inicio</label>
+                        <Input
+                          type="date"
+                          value={newCreditDraft.startDate ?? ""}
+                          onChange={(e) => setNewCreditDraft((p) => ({ ...p, startDate: e.target.value }))}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="text-sm text-muted-foreground">Fecha de fin</label>
+                        <Input
+                          type="date"
+                          value={newCreditDraft.endDate ?? ""}
+                          onChange={(e) => setNewCreditDraft((p) => ({ ...p, endDate: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          ) : (
+            <div className="flex items-center justify-between bg-transparent p-4">
+              <div className="flex items-center gap-3">
+                <div className={cn("h-3 w-3 rounded", styles.color)} />
+                <span className="font-semibold text-foreground">Cuenta {label}</span>
+              </div>
+
+              <TooltipButton icon={Trash2} tooltip="Quitar" onClick={() => removeToCreate(type)} />
             </div>
-
-            <div className="space-y-1">
-              <label className="text-sm text-muted-foreground">Días de facturación</label>
-              <Input
-                type="number"
-                value={newCreditDraft.billingDays ?? ""}
-                onChange={(e) =>
-                  setNewCreditDraft((p) => ({
-                    ...p,
-                    billingDays: e.target.value === "" ? undefined : Number(e.target.value),
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm text-muted-foreground">Días de crédito</label>
-              <Input
-                type="number"
-                value={newCreditDraft.creditDays ?? ""}
-                onChange={(e) =>
-                  setNewCreditDraft((p) => ({
-                    ...p,
-                    creditDays: e.target.value === "" ? undefined : Number(e.target.value),
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm text-muted-foreground">Cuotas</label>
-              <Input
-                type="number"
-                value={newCreditDraft.installments ?? ""}
-                onChange={(e) =>
-                  setNewCreditDraft((p) => ({
-                    ...p,
-                    installments: e.target.value === "" ? undefined : Number(e.target.value),
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm text-muted-foreground">Fecha de inicio</label>
-              <Input
-                type="date"
-                value={newCreditDraft.startDate ?? ""}
-                onChange={(e) =>
-                  setNewCreditDraft((p) => ({
-                    ...p,
-                    startDate: e.target.value,
-                  }))
-                }
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-sm text-muted-foreground">Fecha de fin</label>
-              <Input
-                type="date"
-                value={newCreditDraft.endDate ?? ""}
-                onChange={(e) =>
-                  setNewCreditDraft((p) => ({
-                    ...p,
-                    endDate: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-        )}
-      </Card>
+          )}
+        </Card>
+      </motion.div>
     )
   }
 
+  const anySelected = toCreate.length > 0
+
   return (
-    <div className="flex flex-col gap-4">
-      <h2 className="text-xl font-semibold text-foreground">Gestión de cuenta</h2>
+    <LayoutGroup>
+      <div className="flex flex-col gap-4">
+        <h2 className="text-xl font-semibold text-foreground">Gestión de cuenta</h2>
 
-      <CreateAccountsHeader />
+        {/* ✅ HEADER: igual estilo que “Nuevo → Cuentas” */}
+        <div className="flex flex-col gap-4">
+          <section className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Agregar cuentas</p>
+              <p className="text-xs text-muted-foreground">
+                Si al cliente le falta una cuenta, agrégala aquí.
+              </p>
+            </div>
 
-      <section className="mt-2">
-        {isLoading && <p className="text-sm text-muted-foreground">Cargando cuentas...</p>}
+            <Button
+              type="button"
+              onClick={handleSaveNewAccounts}
+              disabled={!anySelected || isCreating || isLoadingTypes}
+            >
+              Guardar cuentas
+            </Button>
+          </section>
 
-        {!isLoading && (!accounts || accounts.length === 0) && (
-          <p className="text-sm text-muted-foreground">
-            Este cliente aún no tiene cuentas creadas.
-          </p>
-        )}
+          {/* Botones disponibles (como Nuevo): solo muestra los que faltan */}
+          <section className="flex flex-wrap gap-3">
+            <AnimatePresence>
+              {availableButtons.map((b) => (
+                <motion.button
+                  key={b.id}
+                  layoutId={`btn-${b.id}`}
+                  type="button"
+                  onClick={() => addToCreate(b.id)}
+                  className={cn(
+                    "inline-flex h-9 items-center justify-center gap-2 rounded-sm border px-4 py-2 font-semibold text-sm text-white shadow-xs transition-colors md:text-base",
+                    b.styles.color,
+                    b.styles.hoverColor,
+                  )}
+                  exit={{ opacity: 0 }}
+                >
+                  <Plus className="h-4 w-4" />
+                  {b.label}
+                </motion.button>
+              ))}
+            </AnimatePresence>
+          </section>
 
-        {!isLoading && accounts && (
-          <Accordion
-            type="single"
-            collapsible
-            value={openItem}
-            onValueChange={(value) => setOpenItem(value as string | undefined)}
-            className="space-y-3"
-          >
-            {accounts.map((account) => renderAccountCard(account))}
-          </Accordion>
-        )}
-      </section>
-    </div>
+          {/* Cards seleccionadas (como Nuevo) */}
+          <section className="flex flex-col gap-4">
+            <AnimatePresence>
+              {toCreate.map((t) => renderToCreateCard(t))}
+            </AnimatePresence>
+
+            {!isLoadingTypes && availableButtons.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                Este cliente ya tiene todas las cuentas disponibles.
+              </p>
+            )}
+          </section>
+        </div>
+
+        {/* Cuentas existentes (como lo tenías) */}
+        <section className="mt-2">
+          {isLoading && <p className="text-sm text-muted-foreground">Cargando cuentas...</p>}
+
+          {!isLoading && (!accounts || accounts.length === 0) && (
+            <p className="text-sm text-muted-foreground">
+              Este cliente aún no tiene cuentas creadas.
+            </p>
+          )}
+
+          {!isLoading && accounts && (
+            <Accordion
+              type="single"
+              collapsible
+              value={openItem}
+              onValueChange={(value) => setOpenItem(value as string | undefined)}
+              className="space-y-3"
+            >
+              {accounts.map((account) => renderAccountCard(account))}
+            </Accordion>
+          )}
+        </section>
+      </div>
+    </LayoutGroup>
   )
 }
