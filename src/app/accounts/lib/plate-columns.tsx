@@ -32,7 +32,7 @@ export const plateColumns: ColumnDef<CardResponse>[] = [
       return <Switch checked={state} />
     },
   },
-  {
+  { 
     id: "acciones",
     header: "Acciones",
     cell: ({ row }) => {

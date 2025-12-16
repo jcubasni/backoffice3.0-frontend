@@ -144,7 +144,7 @@ export default function ModalAddPlate() {
               </section>
             </div>
             {index !== fields.length - 1 && <Separator />}
-          </>
+          </> 
         ))}
 
         <Button

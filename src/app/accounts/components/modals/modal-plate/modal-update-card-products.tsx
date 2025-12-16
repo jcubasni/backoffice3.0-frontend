@@ -28,6 +28,7 @@ type ModalProps = {
 
 export default function ModalUpdateCardProducts() {
   const queryClient = useQueryClient()
+
   const modal = useModalStore((s) =>
     s.openModals.find((m) => m.id === Modals.UPDATE_CARD_PRODUCTS),
   )
@@ -45,11 +46,32 @@ export default function ModalUpdateCardProducts() {
   const current = props?.currentProducts ?? []
   const currentIds = useMemo(() => new Set(current.map((p) => p.id)), [current])
 
+  
+  // ✅ Mapa: productId -> description (para pintar nombres en "toAdd")
+  const productNameById = useMemo(() => {
+    const map = new Map<number, string>()
+    ;(productsQuery.data ?? []).forEach((p: any) => {
+      map.set(Number(p.productId), p.description)
+    })
+    return map
+  }, [productsQuery.data])
+
+  const getProductName = (id: number) => {
+  // 1) si está en currentProducts, usa ese nombre (más seguro)
+  const fromCurrent = current.find((p) => p.id === id)?.name
+  if (fromCurrent) return fromCurrent
+
+  // 2) si no, intenta del catálogo
+  return productNameById.get(id) ?? `ID: ${id}`
+}
+
+
   const productsOptions = useMemo(() => {
     const all = productsQuery.data ?? []
 
     // Evita ofrecer productos que ya están asignados (o que ya agregaste)
     const blocked = new Set<number>([...Array.from(currentIds), ...toAdd])
+
     return dataToCombo(
       all.filter((p: any) => !blocked.has(Number(p.productId))),
       "productId",
@@ -60,6 +82,7 @@ export default function ModalUpdateCardProducts() {
   const mutation = useMutation({
     mutationFn: async () => {
       if (!props) throw new Error("No props")
+
       return updateCard(props.accountCardId, {
         products: {
           remove: toRemove,
@@ -71,12 +94,10 @@ export default function ModalUpdateCardProducts() {
       toast.success("Productos actualizados correctamente")
       closeModal(Modals.UPDATE_CARD_PRODUCTS)
 
-      // ✅ Refetch tarjetas del cliente
-      // Ajusta la queryKey si tu hook usa otra (si me pasas useSearchPlateByClientId lo dejo exacto)
+      // ✅ queryKey real de tu hook useSearchPlateByClientId
       await queryClient.invalidateQueries({
-        queryKey: ["accounts", "cards", "by-client", props?.clientId],
+        queryKey: ["plates", "by-client", props?.clientId],
       })
-      await queryClient.invalidateQueries({ queryKey: ["cards"] })
     },
     onError: () => {
       toast.error("No se pudo actualizar los productos")
@@ -135,7 +156,9 @@ export default function ModalUpdateCardProducts() {
           <p className="text-sm font-semibold">Productos actuales</p>
 
           {current.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin productos asignados.</p>
+            <p className="text-sm text-muted-foreground">
+              Sin productos asignados.
+            </p>
           ) : (
             <div className="flex flex-wrap gap-2">
               {current.map((p) => {
@@ -149,11 +172,19 @@ export default function ModalUpdateCardProducts() {
                     <span>{p.name}</span>
 
                     {marked ? (
-                      <button type="button" onClick={() => handleUndoRemove(p.id)} title="Deshacer">
+                      <button
+                        type="button"
+                        onClick={() => handleUndoRemove(p.id)}
+                        title="Deshacer"
+                      >
                         <Plus className="h-3 w-3 rotate-45" />
                       </button>
                     ) : (
-                      <button type="button" onClick={() => handleRemoveCurrent(p.id)} title="Quitar">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCurrent(p.id)}
+                        title="Quitar"
+                      >
                         <X className="h-3 w-3" />
                       </button>
                     )}
@@ -167,18 +198,55 @@ export default function ModalUpdateCardProducts() {
             <div className="space-y-2 pt-2">
               <p className="text-sm font-semibold">Productos a agregar</p>
               <div className="flex flex-wrap gap-2">
-                {toAdd.map((id) => (
-                  <Badge key={id} className="flex items-center gap-2">
-                    <span>ID: {id}</span>
-                    <button type="button" onClick={() => setToAdd((p) => p.filter((x) => x !== id))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
+                {toAdd.map((id) => {
+                  const name = productNameById.get(id) ?? `ID: ${id}`
+
+                  return (
+                    <Badge key={id} className="flex items-center gap-2">
+                      <span>{name}</span>
+                      <button
+                        type="button"
+                        title="Quitar"
+                        onClick={() =>
+                          setToAdd((prev) => prev.filter((x) => x !== id))
+                        }
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  )
+                })}
               </div>
             </div>
           )}
+          
         </div>
+        {toRemove.length > 0 && (
+        <div className="space-y-2 pt-2">
+          <p className="text-sm font-semibold">Productos a remover</p>
+
+          <div className="flex flex-wrap gap-2">
+            {toRemove.map((id) => (
+              <Badge
+                key={id}
+                variant="destructive"
+                className="flex items-center gap-2"
+              >
+                <span>{getProductName(id)}</span>
+
+                <button
+                  type="button"
+                  title="Deshacer"
+                  onClick={() => handleUndoRemove(id)}
+                >
+                  <Plus className="h-3 w-3 rotate-45" />
+                </button>
+              </Badge>
+            ))}
+          </div>
+        </div>
+      )}
+
 
         <div className="space-y-2">
           <p className="text-sm font-semibold">Agregar producto</p>
@@ -193,7 +261,11 @@ export default function ModalUpdateCardProducts() {
               className="w-full"
               searchable
             />
-            <Button type="button" onClick={handleAdd} disabled={!selectedProductId}>
+            <Button
+              type="button"
+              onClick={handleAdd}
+              disabled={!selectedProductId}
+            >
               <Plus className="mr-2 h-4 w-4" />
               Agregar
             </Button>
@@ -209,7 +281,11 @@ export default function ModalUpdateCardProducts() {
           >
             Cancelar
           </Button>
-          <Button type="button" onClick={() => mutation.mutate()} disabled={mutation.isPending}>
+          <Button
+            type="button"
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+          >
             Guardar
           </Button>
         </div>
