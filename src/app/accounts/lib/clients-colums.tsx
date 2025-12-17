@@ -18,8 +18,20 @@ const getPrimaryAddress = (client: ClientResponse) => {
   return client.addresses.find((addr) => addr.isPrimary) ?? client.addresses[0]
 }
 
+/**
+ * ✅ Helper: si viene string -> string
+ * si viene objeto -> obj.name
+ */
+const toUbigeoName = (value: unknown) => {
+  if (!value) return ""
+  if (typeof value === "string") return value
+  if (typeof value === "object" && "name" in (value as any)) {
+    return String((value as any).name ?? "")
+  }
+  return ""
+}
+
 export const clientsColumns: ColumnDef<ClientResponse>[] = [
-  // 🔽 EXPANDER (NO OCULTABLE)
   {
     id: "expander",
     size: 20,
@@ -45,7 +57,6 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
     },
   },
 
-  // 📌 Tipo documento
   {
     id: "documentType",
     accessorFn: (row) => row.documentType?.name ?? "",
@@ -53,9 +64,7 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
       <button
         type="button"
         className="flex w-full items-center justify-center gap-1 font-semibold"
-        onClick={() =>
-          column.toggleSorting(column.getIsSorted() === "asc")
-        }
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         <span>Tipo documento</span>
         <ArrowUpDown className="h-3 w-3" />
@@ -66,7 +75,6 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
     enableHiding: false,
   },
 
-  // 📌 N° documento
   {
     id: "documentNumber",
     accessorKey: "documentNumber",
@@ -74,9 +82,7 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
       <button
         type="button"
         className="flex w-full items-center justify-center gap-1 font-semibold"
-        onClick={() =>
-          column.toggleSorting(column.getIsSorted() === "asc")
-        }
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         <span>N° documento</span>
         <ArrowUpDown className="h-3 w-3" />
@@ -86,18 +92,14 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
     enableHiding: false,
   },
 
-  // 📌 Cliente
   {
     id: "clientName",
-    accessorFn: (row) =>
-      `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim(),
+    accessorFn: (row) => `${row.firstName ?? ""} ${row.lastName ?? ""}`.trim(),
     header: ({ column }) => (
       <button
         type="button"
         className="flex w-full items-center justify-center gap-1 font-semibold"
-        onClick={() =>
-          column.toggleSorting(column.getIsSorted() === "asc")
-        }
+        onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
       >
         <span>Cliente</span>
         <ArrowUpDown className="h-3 w-3" />
@@ -113,21 +115,18 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
     enableHiding: false,
   },
 
-  // 📌 Teléfono
   {
     id: "phoneNumber",
     header: "Teléfono",
     accessorKey: "phoneNumber",
   },
 
-  // 📌 Correo
   {
     id: "email",
     header: "Correo",
     accessorKey: "email",
   },
 
-  // 📌 Dirección (desde addresses[0].addressLine1)
   {
     id: "address",
     header: "Dirección",
@@ -139,39 +138,29 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
   },
 
   // 📌 Departamento
-  {
-    id: "department",
-    header: "Departamento",
-    accessorFn: (row) => {
-      const primary = getPrimaryAddress(row)
-      return primary?.department ?? ""
-    },
-    enableHiding: true,
-  },
+{
+  id: "department",
+  header: "Departamento",
+  accessorFn: (row) => getPrimaryAddress(row)?.department?.name ?? "",
+  enableHiding: true,
+},
 
-  // 📌 Provincia
-  {
-    id: "province",
-    header: "Provincia",
-    accessorFn: (row) => {
-      const primary = getPrimaryAddress(row)
-      return primary?.province ?? ""
-    },
-    enableHiding: true,
-  },
+// 📌 Provincia
+{
+  id: "province",
+  header: "Provincia",
+  accessorFn: (row) => getPrimaryAddress(row)?.province?.name ?? "",
+  enableHiding: true,
+},
 
-  // 📌 Distrito
-  {
-    id: "district",
-    header: "Distrito",
-    accessorFn: (row) => {
-      const primary = getPrimaryAddress(row)
-      return primary?.district ?? ""
-    },
-    enableHiding: true,
-  },
+// 📌 Distrito
+{
+  id: "district",
+  header: "Distrito",
+  accessorFn: (row) => getPrimaryAddress(row)?.district?.name ?? "",
+  enableHiding: true,
+},
 
-  // 📌 Estado cuenta (por ahora puede venir vacío si el backend no lo manda)
   {
     id: "accountStatus",
     header: "Bloquear cuenta",
@@ -188,7 +177,6 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
     },
   },
 
-  // 📌 Acciones
   {
     id: "actions",
     header: "Acciones",
@@ -198,16 +186,15 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
       const client = row.original
       const primary = getPrimaryAddress(client)
 
-      // 👇 Payload que le mandamos al modal de edición
       const clientForModal = {
-        ...client,
-        address: primary?.addressLine1 ?? "",
-        department: primary?.department ?? "",
-        province: primary?.province ?? "",
-        district: primary?.district ?? "",
-        // dejamos listo para ubigeo más adelante
-        districtId: (primary as any)?.districtId ?? undefined,
-      }
+    ...client,
+    address: primary?.addressLine1 ?? "",
+    department: primary?.department?.name ?? "",
+    province: primary?.province?.name ?? "",
+    district: primary?.district?.name ?? "",
+    districtId: primary?.district?.id ?? undefined, // ✅ este sí existe
+  }
+
 
       return (
         <TooltipButton.Box>

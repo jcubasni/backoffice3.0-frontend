@@ -100,9 +100,9 @@ export const createClientSchema = z
     firstName: z.string().min(1, "El nombre es requerido"),
     lastName: optionalString,
     address: optionalString,
-    department: optionalString,
-    province: optionalString,
-    district: optionalString,
+    departmentId: optionalString, // "01", "15", etc
+    provinceId: optionalString,   // "1501", etc
+    districtId: optionalString,   // "150142", etc
     email: optionalString.pipe(z.string().email("Email inválido").optional()),
     phone: optionalString,
     accounts: z

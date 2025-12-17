@@ -6,14 +6,21 @@ export type DocumentTypeResponse = {
 /**
  * Dirección del cliente tal como viene del backend en GET /clients
  */
+export type UbigeoRef = {
+  id: string
+  name: string
+}
+
 export type ClientAddressResponse = {
   id: string
   addressLine1: string
   addressLine2: string | null
   reference: string | null
-  province: string | null
-  department: string | null
-  district: string | null
+
+  province: UbigeoRef | null
+  department: UbigeoRef | null
+  district: UbigeoRef | null
+
   countryCode: string | null
   isPrimary: boolean
 }
@@ -186,9 +193,7 @@ export type ClientDTO = {
   firstName: string
   lastName?: string
   address?: string
-  department?: string
-  province?: string
-  district?: string
+  districtId?: string
   email?: string
   phone?: string
   clientCode?: string

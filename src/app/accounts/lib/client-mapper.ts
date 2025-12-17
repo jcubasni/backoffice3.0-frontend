@@ -15,9 +15,10 @@ export const mapCreateClientSchemaToClientDTO = (
     firstName: data.firstName,
     lastName: data.lastName,
     address: data.address,
-    department: data.department,
-    province: data.province,
-    district: data.district,
+
+    // ✅ Ubigeo: enviar solo lo que normalmente pide el backend
+    districtId: data.districtId,
+
     email: data.email,
     phone: data.phone,
 

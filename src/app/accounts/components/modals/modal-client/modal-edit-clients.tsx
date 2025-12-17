@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimatePresence, motion } from "framer-motion"
 import { Save } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 
 import { SidebarEditClient } from "./sidebar-edit-client"
 import { ClientEditInfo } from "./client-edit-info"
@@ -12,12 +12,12 @@ import { ClientAccountsEdit } from "./client-accounts-edit"
 import { ClientCardsEdit } from "./client-cards-edit"
 
 import { clientTabs } from "@/app/accounts/lib/client-tabs"
-
 import {
   EditClientSchema,
   editClientSchema,
 } from "@/app/accounts/schemas/edit-client.schema"
 import { useEditClient } from "@/app/accounts/hooks/useClientsService"
+import { useGetDistrictById } from "@/app/accounts/hooks/useUbigeoService"
 import { Modals } from "@/app/accounts/types/modals-name"
 import type { ClientResponse } from "@/app/accounts/types/client.type"
 
@@ -32,10 +32,13 @@ export default function ModalEditClients() {
 
   const dataModal = useModalStore((state) =>
     state.openModals.find((modal) => modal.id === Modals.EDIT_CLIENT),
-  )?.prop as ClientResponse | undefined
+  )?.prop as (ClientResponse & {
+    address?: string
+    phone?: string
+    districtId?: string
+  }) | undefined
 
   const clientId = dataModal?.id
-
   const { mutate, isPending } = useEditClient()
 
   const form = useForm<EditClientSchema>({
@@ -45,67 +48,72 @@ export default function ModalEditClients() {
       firstName: "",
       lastName: "",
       address: "",
-      department: "",
-      province: "",
-      district: "",
+      departmentId: "",
+      provinceId: "",
+      districtId: "",
       email: "",
       phone: "",
     },
   })
 
+  // ✅ cargar data base del modal
   useEffect(() => {
     if (!dataModal) return
 
     form.reset({
       firstName: dataModal.firstName ?? "",
       lastName: dataModal.lastName ?? "",
-      // 👇 ojo: address en tu ClientResponse real viene dentro de addresses[]
-      // si dataModal.address existe (porque lo estás pasando desde la tabla), lo respetamos:
-      address: (dataModal as any).address ?? "",
-      department: (dataModal as any).department ?? "",
-      province: (dataModal as any).province ?? "",
-      district: (dataModal as any).district ?? "",
+      address: dataModal.address ?? "",
+      departmentId: "",
+      provinceId: "",
+      districtId: dataModal.districtId ?? "",
       email: dataModal.email ?? "",
-      phone: (dataModal as any).phoneNumber ?? (dataModal as any).phone ?? "",
+      phone: dataModal.phoneNumber ?? dataModal.phone ?? "",
     })
   }, [dataModal, form])
 
-  if (!dataModal) return null
+  // ✅ precargar departmentId + provinceId usando districtId
+  const districtId = useWatch({ control: form.control, name: "districtId" })
+  const districtByIdQuery = useGetDistrictById(districtId)
+
+  useEffect(() => {
+    if (!districtByIdQuery.data) return
+
+    form.setValue("departmentId", districtByIdQuery.data.department.id)
+    form.setValue("provinceId", districtByIdQuery.data.province.id)
+    form.trigger(["departmentId", "provinceId", "districtId"])
+  }, [districtByIdQuery.data, form])
 
   const handleSubmit = (data: EditClientSchema) => {
-    if (!clientId) {
-      console.error("Client id not found in modal data")
-      return
-    }
+    if (!clientId) return
 
-    const payload = {
-      firstName: data.firstName,
-      lastName: data.lastName,
-      address: data.address,
-      email: data.email,
-      phone: data.phone,
-    }
+      const payload = {
+  firstName: data.firstName,
+  lastName: data.lastName,
+  address: data.address,
+  districtId: data.districtId, // ✅ ESTE ES EL CLAVE
+  email: data.email,
+  phone: data.phone,
+}
 
-    mutate({
-      clientId,
-      data: payload,
-    })
+
+
+
+    mutate({ clientId, data: payload })
   }
 
   const submitForm = form.handleSubmit(handleSubmit)
 
-  // ✅ Tabs con overrides específicos para edición
   const editableTabs = useMemo(() => {
     return clientTabs.map((tab) => {
       if (tab.id === "misDatos") {
         return {
           ...tab,
-          component: <ClientEditInfo client={dataModal} />,
+          component: <ClientEditInfo client={dataModal as any} />,
         }
       }
 
       if (tab.id === "cuentas") {
-        // ✅ Solo renderizar si hay clientId
         return {
           ...tab,
           component: clientId ? (
@@ -135,6 +143,8 @@ export default function ModalEditClients() {
     })
   }, [clientId, dataModal])
 
+  if (!dataModal) return null
+
   return (
     <Modal
       modalId={Modals.EDIT_CLIENT}
@@ -146,12 +156,14 @@ export default function ModalEditClients() {
         onSubmit={handleSubmit}
         className="flex min-h-[85vh] flex-1 flex-col gap-6 lg:flex-row"
       >
-        {/* SIDEBAR */}
         <SidebarEditClient onSubmit={submitForm} disabled={isPending} />
 
-        {/* CONTENIDO */}
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1">
+          <Tabs
+            value={activeTab}
+            onValueChange={setActiveTab}
+            className="w-full flex-1"
+          >
             <TabsList className="mx-auto mb-6 h-auto w-fit gap-1.5 rounded-xl p-1 md:gap-4">
               {editableTabs.map((tab) => {
                 const isActive = activeTab === tab.id
@@ -202,7 +214,6 @@ export default function ModalEditClients() {
             ))}
           </Tabs>
 
-          {/* BOTÓN FINAL EN MODO MOBILE */}
           <div className="w-full px-4 pb-4 lg:hidden">
             <Button type="submit" className="w-full" disabled={isPending}>
               <Save className="size-4" />
