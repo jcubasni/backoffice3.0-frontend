@@ -4,7 +4,7 @@ import type React from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimatePresence, motion } from "framer-motion"
 import { CheckCircle2, Save } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
 
@@ -32,7 +32,7 @@ function BlockedTabCard({
   title,
   message,
 }: {
-  title: string 
+  title: string
   message: React.ReactNode
 }) {
   return (
@@ -55,6 +55,11 @@ export default function ModalAddClient() {
     state.openModals.some((m) => m.id === Modals.ADD_CLIENT),
   )
 
+  // ✅ ids para evitar toasts apilados
+  const blockedToastId = useRef("toast-save-client-first")
+  const invalidFormToastId = useRef("client-form-invalid")
+  const alreadySavedToastId = useRef("client-already-saved")
+
   const form = useForm<CreateClientSchema>({
     resolver: zodResolver(createClientSchema),
     mode: "onChange",
@@ -70,7 +75,6 @@ export default function ModalAddClient() {
 
   const tabsForAdd = useMemo(() => {
     return clientTabs.map((tab) => {
-      // ✅ Cuentas
       if (tab.id === "cuentas") {
         if (createdClientId) {
           return {
@@ -95,7 +99,6 @@ export default function ModalAddClient() {
         }
       }
 
-      // ✅ Tarjetas
       if (tab.id === "tarjetas") {
         if (createdClientId) {
           return {
@@ -108,7 +111,7 @@ export default function ModalAddClient() {
           ...tab,
           component: (
             <BlockedTabCard
-              title="Tarjetas   del cliente"
+              title="Tarjetas del cliente"
               message={
                 <>
                   Para gestionar tarjetas primero debes{" "}
@@ -126,10 +129,26 @@ export default function ModalAddClient() {
     })
   }, [createdClientId])
 
-  const handleSubmit = (data: CreateClientSchema) => {
+  // ✅ IMPORTANTE: async para validar antes de crear
+  const handleSubmit = async (data: CreateClientSchema) => {
+    // ⛔ si está enviando, no hagas nada
+    if (addClient.isPending) return
+
     // ✅ si ya está creado, no vuelvas a crear
     if (createdClientId) {
-      toast.info("El cliente ya está guardado.")
+      toast.info("El cliente ya está guardado.", { id: alreadySavedToastId.current })
+      return
+    }
+
+    // ✅ validar form y mostrar toast general (1 vez)
+    const isValid = await form.trigger()
+    if (!isValid) {
+      toast.error("Completa los campos obligatorios (marcados en rojo).", {
+        id: invalidFormToastId.current,
+      })
+      // opcional: enfoca el primer error
+      // const firstError = Object.keys(form.formState.errors)[0]
+      // if (firstError) form.setFocus(firstError as any)
       return
     }
 
@@ -155,12 +174,13 @@ export default function ModalAddClient() {
   }
 
   const handleTabChange = (tabId: string) => {
-    // ⛔ bloquear navegación mientras se crea
+    if (tabId === activeTab) return
     if (addClient.isPending) return
 
-    // ⛔ bloquear Cuentas/Tarjetas si aún no hay cliente
     if ((tabId === "cuentas" || tabId === "tarjetas") && !createdClientId) {
-      toast.info("Primero guarda el cliente para continuar")
+      toast.info("Primero guarda el cliente para continuar", {
+        id: blockedToastId.current,
+      })
       return
     }
 
@@ -183,7 +203,6 @@ export default function ModalAddClient() {
         <Sidebar />
 
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
-          {/* Estado */}
           <div className="mb-4 flex items-center justify-between gap-2 px-2">
             <div className="text-sm text-muted-foreground">
               Estado:{" "}
@@ -195,15 +214,12 @@ export default function ModalAddClient() {
                 <span className="font-semibold text-foreground">No guardado</span>
               )}
             </div>
-
-            
           </div>
-          
 
           <Tabs
             value={activeTab}
             onValueChange={handleTabChange}
-            className="flex-1 w-full gap-4"
+            className="w-full flex-1 gap-4"
           >
             <TabsList className="mx-auto mb-6 h-auto w-fit justify-start gap-1.5 rounded-xl p-1 md:gap-4">
               {tabsForAdd.map((tab) => {
@@ -214,7 +230,6 @@ export default function ModalAddClient() {
                   <motion.div
                     key={tab.id}
                     className="flex h-9 items-center justify-center overflow-hidden rounded-lg"
-                    onClick={() => handleTabChange(tab.id)}
                     initial={false}
                     animate={{ width: isActive ? "auto" : "36px" }}
                     transition={{ type: "spring", stiffness: 400, damping: 25 }}
@@ -246,7 +261,6 @@ export default function ModalAddClient() {
               })}
             </TabsList>
 
-
             {tabsForAdd.map((tab) => (
               <TabsContent
                 key={tab.id}
@@ -255,37 +269,31 @@ export default function ModalAddClient() {
               >
                 {tab.component || (
                   <div className="flex h-full flex-col items-center justify-center gap-2 py-12">
-                    <p className="text-sm text-slate-500">
-                      Contenido no disponible
-                    </p>
+                    <p className="text-sm text-slate-500">Contenido no disponible</p>
                   </div>
                 )}
               </TabsContent>
             ))}
           </Tabs>
-          {/* Botón guardar (desktop) */}
-          {/* Botón guardar (desktop) */}
-{activeTab === "misDatos" && (
-  <div className="mt-6 hidden lg:flex justify-end mr-3">
-    <Button
-      type="submit"
-      disabled={addClient.isPending || isSaved}
-      variant={isSaved ? "outline" : "default"}
-    >
-      <Save className="mr-2 size-4" />
-      {isSaved
-        ? "Cliente guardado"
-        : addClient.isPending
-          ? "Guardando..."
-          : "Guardar cliente"}
-    </Button>
-  </div>
-)}
 
-
+          {activeTab === "misDatos" && (
+            <div className="mt-6 mr-3 hidden justify-end lg:flex">
+              <Button
+                type="submit"
+                disabled={addClient.isPending || isSaved}
+                variant={isSaved ? "outline" : "default"}
+              >
+                <Save className="mr-2 size-4" />
+                {isSaved
+                  ? "Cliente guardado"
+                  : addClient.isPending
+                    ? "Guardando..."
+                    : "Guardar cliente"}
+              </Button>
+            </div>
+          )}
         </main>
 
-        {/* Botón guardar (mobile) */}
         <div className="w-full px-4 pb-4 lg:hidden">
           <Button
             type="submit"
@@ -293,18 +301,15 @@ export default function ModalAddClient() {
             disabled={addClient.isPending || isSaved}
             variant={isSaved ? "outline" : "default"}
           >
-            <Save className="size-4" />
+            <Save className="mr-2 size-4" />
             {isSaved
               ? "Cliente guardado"
               : addClient.isPending
                 ? "Guardando..."
                 : "Guardar cliente"}
           </Button>
-          
         </div>
       </FormWrapper>
     </Modal>
   )
-  
 }
-

@@ -1,19 +1,14 @@
 "use client"
 
-import { Upload, User, Phone, Mail, MapPin } from "lucide-react"
+import { Upload, User, Phone, Mail, MapPin, FileText } from "lucide-react"
 import { useId } from "react"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useModalStore } from "@/shared/store/modal.store"
 import { Modals } from "@/app/accounts/types/modals-name"
+import { toast } from "sonner"
 
-export function SidebarEditClient({
-  onSubmit,
-  disabled,
-}: {
-  onSubmit?: () => void
-  disabled?: boolean
-}) {
+export function SidebarEditClient() {
   const photoInputId = useId()
 
   const dataModal = useModalStore((state) =>
@@ -25,21 +20,35 @@ export function SidebarEditClient({
       "No registrado"
     : "No registrado"
 
-  const phone =
-    dataModal?.phoneNumber ?? dataModal?.phone ?? "No registrado"
+  const phone = dataModal?.phoneNumber ?? dataModal?.phone ?? "No registrado"
   const email = dataModal?.email || "No registrado"
   const address = dataModal?.address || "No registrada"
 
   // Foto futura
   const photoUrl = (dataModal as any)?.photoUrl ?? null
 
+  const handleOpenPdf = () => {
+    if (!dataModal) {
+      toast.info("No hay datos del cliente para generar el PDF.", {
+        id: "client-pdf-no-data",
+      })
+      return
+    }
+
+    useModalStore.getState().openModal("modal-preview-clients-pdf", {
+      // ✅ por ahora mandamos 1 cliente (luego lo mapeamos a ClientExport si tu modal lo requiere)
+      clients: [dataModal],
+      columnVisibility: {},
+    })
+  }
+
   return (
     <aside
       className="
-      hidden lg:flex w-64 flex-col 
-      border-r border-border bg-sidebar/60 rounded-l-md 
-      p-6 gap-6
-    "
+        hidden lg:flex w-64 flex-col
+        border-r border-border bg-sidebar/60 rounded-l-md
+        p-6 gap-6
+      "
     >
       {/* FOTO DEL CLIENTE */}
       <section>
@@ -89,28 +98,21 @@ export function SidebarEditClient({
         </h3>
 
         <div className="space-y-3 text-xs">
-          {/* Usuario */}
           <InfoItem
             icon={<User className="h-4 w-4 text-blue-500" />}
             label="Usuario"
             value={userName}
           />
-
-          {/* Teléfono */}
           <InfoItem
             icon={<Phone className="h-4 w-4 text-green-500" />}
             label="Teléfono"
             value={phone}
           />
-
-          {/* Correo */}
           <InfoItem
             icon={<Mail className="h-4 w-4 text-purple-500" />}
             label="Correo"
             value={email}
           />
-
-          {/* Dirección */}
           <InfoItem
             icon={<MapPin className="h-4 w-4 text-red-500" />}
             label="Dirección"
@@ -119,25 +121,26 @@ export function SidebarEditClient({
         </div>
       </section>
 
-      {/* BOTÓN GUARDAR */}
+      {/* BOTÓN PDF */}
       <div className="mt-auto">
         <Button
-          className="w-full"
-          variant="outline"
+          size="header"
+          className="
+            w-full
+            hover:bg-red-700 hover:text-white
+            dark:hover:bg-red-900 dark:hover:text-white
+            transition-colors
+          "
           type="button"
-          disabled={disabled}
-          onClick={onSubmit}
+          onClick={handleOpenPdf}
         >
-          Guardar Cambios
+          <FileText className="mr-2 h-4 w-4" />
+          Ver PDF
         </Button>
       </div>
     </aside>
   )
 }
-
-/* ---------------------------------------
-   COMPONENTE AUXILIAR: ITEM DE INFORMACIÓN
------------------------------------------ */
 
 function InfoItem({
   icon,

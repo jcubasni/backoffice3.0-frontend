@@ -33,7 +33,7 @@ export function useAddPlates(accountId?: string) {
       return addPlates(accountId, body)
     },
     onSuccess: () => {
-      toast.success("Se agregaron las placas correctamente")
+      toast.success("Se guardó correctamente")
       useModalStore.getState().closeModal(Modals.ADD_PLATE)
 
       queryClient.invalidateQueries({

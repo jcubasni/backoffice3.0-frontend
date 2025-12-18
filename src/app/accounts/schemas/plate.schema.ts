@@ -13,9 +13,12 @@ export const plateItemSchema = z.object({
   cardNumber: z.string().min(1, "El número de tarjeta es requerido"),
 
   // ✅ obligatorio, pero con default 0
-  balance: z.coerce.number().min(0, "El saldo no puede ser negativo").default(0),
+ balance: z.coerce.number().min(0, "El saldo no puede ser negativo").catch(0),
 
-  productId: z.coerce.number().min(1, "El producto es requerido"),
+  // ✅ AHORA: múltiples productos (chips)
+  productIds: z
+    .array(z.coerce.number())
+    .min(1, "Debe seleccionar al menos un producto"),
 })
 
 export const plateArraySchema = z.object({

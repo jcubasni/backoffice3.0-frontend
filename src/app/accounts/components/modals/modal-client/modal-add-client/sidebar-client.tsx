@@ -1,42 +1,52 @@
 "use client"
 
-import { Upload } from "lucide-react"
+import { FileText, Upload } from "lucide-react"
 import { useId } from "react"
+import { toast } from "sonner"
+
 import { clientInfoFields } from "@/app/accounts/lib/client-info-fields"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 
-export function Sidebar() {
+type SidebarProps = {
+  isSaved: boolean
+  onViewPdf?: () => void
+}
+
+export function Sidebar({ isSaved, onViewPdf }: SidebarProps) {
   const photoInputId = useId()
+
+  const handleViewPdf = () => {
+    if (!isSaved) {
+      toast.info("Primero guarda el cliente para ver el reporte.", {
+        id: "client-pdf-blocked",
+      })
+      return
+    }
+    onViewPdf?.()
+  }
 
   return (
     <aside className="hidden w-full flex-col rounded-l-md border-border border-b bg-sidebar/60 p-4 md:p-6 lg:flex lg:w-64 lg:border-r lg:border-b-0">
       <div className="space-y-6">
         {/* Profile Photo Section */}
         <div className="space-y-4">
-          <h3 className="font-semibold text-sidebar-foreground text-sm">
+          <h3 className="text-sm font-semibold text-sidebar-foreground">
             Tu foto
           </h3>
+
           <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg border-2 border-border bg-card">
-            {!photoInputId ? (
-              <img
-                src={"/placeholder.svg"}
-                alt="Profile"
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              <div className="text-center">
-                <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
-                <p className="text-muted-foreground text-xs">Sube una foto</p>
-              </div>
-            )}
+            <div className="text-center">
+              <Upload className="mx-auto mb-2 h-8 w-8 text-muted-foreground" />
+              <p className="text-xs text-muted-foreground">Sube una foto</p>
+            </div>
           </div>
+
           <Label htmlFor={photoInputId} className="block">
             <input
               id={photoInputId}
               type="file"
               accept="image/*"
-              // onChange={onPhotoUpload}
               className="hidden"
             />
             <Button
@@ -52,9 +62,10 @@ export function Sidebar() {
         </div>
 
         <div className="space-y-3 border-border border-t pt-4">
-          <h3 className="font-semibold text-sidebar-foreground text-sm">
+          <h3 className="text-sm font-semibold text-sidebar-foreground">
             Información
           </h3>
+
           <div className="space-y-3 text-xs">
             {clientInfoFields.map((field) => {
               const Icon = field.icon
@@ -68,7 +79,7 @@ export function Sidebar() {
                   />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground">{field.label}</p>
-                    <p className="truncate text-muted-foreground text-xs">
+                    <p className="truncate text-xs text-muted-foreground">
                       {field.getValue}
                     </p>
                   </div>
@@ -79,9 +90,16 @@ export function Sidebar() {
         </div>
       </div>
 
-      {/* Save Button */}
+      {/* PDF Button */}
       {/* <div className="mt-auto">
-        <Button className="w-full">Guardar Cambios</Button>
+        <Button
+          type="button"
+          className="w-full"
+          onClick={handleViewPdf}
+        >
+          <FileText className="mr-2 h-4 w-4" />
+          Ver reporte (PDF)
+        </Button>
       </div> */}
     </aside>
   )

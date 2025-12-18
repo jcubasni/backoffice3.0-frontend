@@ -12,9 +12,22 @@ const optionalString = z
   .transform((val) => (val === "" ? undefined : val))
 
 const numberCoerce = z.coerce.number().int()
-const optionalNumber = numberCoerce 
+const optionalNumber = numberCoerce
   .optional()
   .transform((val) => (val === 0 ? undefined : val))
+
+/**
+ * ✅ documentType "amigable":
+ * - Tu ComboBox suele mandar "" cuando no hay selección.
+ * - Zod nativeEnum no acepta "".
+ * - Entonces: preprocesamos "" -> undefined y mostramos mensaje humano.
+ */
+const documentTypeSchema = z.preprocess(
+  (val) => (val === "" || val === null ? undefined : val),
+  z.nativeEnum(DocumentTypeCode, {
+    errorMap: () => ({ message: "Selecciona un tipo de documento" }),
+  }),
+)
 
 // Schema para la data de cuenta de crédito
 const accountDataSchema = z
@@ -52,7 +65,6 @@ const accountSchema = z
   })
   .refine(
     (data) => {
-      // Si el tipo de cuenta es CREDIT, accountData es requerido
       if (data.accountTypeId === AccountTypeForClient.CREDIT) {
         return data.accountData !== undefined
       }
@@ -93,16 +105,17 @@ export const vehicleSchema = z.object({
 // Schema principal para crear cliente
 export const createClientSchema = z
   .object({
-    documentType: z.nativeEnum(DocumentTypeCode, {
-      errorMap: () => ({ message: "Tipo de documento inválido" }),
-    }),
-    documentNumber: z.string().min(1, "El número de documento es requerido"),
+    documentType: documentTypeSchema,
+    documentNumber: z
+      .string()
+      .min(1, "El número de documento es requerido")
+      .regex(/^\d+$/, "El número de documento debe contener solo dígitos"),
     firstName: z.string().min(1, "El nombre es requerido"),
     lastName: optionalString,
     address: optionalString,
-    departmentId: optionalString, // "01", "15", etc
-    provinceId: optionalString,   // "1501", etc
-    districtId: optionalString,   // "150142", etc
+    departmentId: optionalString,
+    provinceId: optionalString,
+    districtId: optionalString,
     email: optionalString.pipe(z.string().email("Email inválido").optional()),
     phone: optionalString,
     accounts: z
@@ -114,20 +127,22 @@ export const createClientSchema = z
       .optional()
       .transform((val) => (val?.length === 0 ? undefined : val)),
   })
-  .refine(
-    (data) => {
-      // Validar longitud del número de documento según el tipo
-      const docTypeInfo = DocumentTypeInfo[data.documentType]
-      return data.documentNumber.length === docTypeInfo.length
-    },
-    (data) => {
-      const docTypeInfo = DocumentTypeInfo[data.documentType]
-      return {
+  .superRefine((data, ctx) => {
+    // ✅ Si no hay tipo de documento, no validamos longitud
+    if (!data.documentType) return
+    if (!data.documentNumber) return
+
+    const docTypeInfo = DocumentTypeInfo[data.documentType]
+    if (!docTypeInfo) return
+
+    if (data.documentNumber.length !== docTypeInfo.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
         message: `El ${docTypeInfo.label} debe tener ${docTypeInfo.length} dígitos`,
         path: ["documentNumber"],
-      }
-    },
-  )
+      })
+    }
+  })
 
 export type CreateClientSchema = z.infer<typeof createClientSchema>
 export type AccountSchema = z.infer<typeof accountSchema>

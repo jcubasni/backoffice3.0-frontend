@@ -46,8 +46,7 @@ export default function ModalUpdateCardProducts() {
   const current = props?.currentProducts ?? []
   const currentIds = useMemo(() => new Set(current.map((p) => p.id)), [current])
 
-  
-  // ✅ Mapa: productId -> description (para pintar nombres en "toAdd")
+  // ✅ Mapa: productId -> description (para pintar nombres)
   const productNameById = useMemo(() => {
     const map = new Map<number, string>()
     ;(productsQuery.data ?? []).forEach((p: any) => {
@@ -57,19 +56,48 @@ export default function ModalUpdateCardProducts() {
   }, [productsQuery.data])
 
   const getProductName = (id: number) => {
-  // 1) si está en currentProducts, usa ese nombre (más seguro)
-  const fromCurrent = current.find((p) => p.id === id)?.name
-  if (fromCurrent) return fromCurrent
+    const fromCurrent = current.find((p) => p.id === id)?.name
+    if (fromCurrent) return fromCurrent
+    return productNameById.get(id) ?? `ID: ${id}`
+  }
 
-  // 2) si no, intenta del catálogo
-  return productNameById.get(id) ?? `ID: ${id}`
-}
+  // ✅ ids reales del catálogo (sin TODOS=0)
+  const allRealProductIds = useMemo(() => {
+    return (productsQuery.data ?? [])
+      .map((p: any) => Number(p.productId))
+      .filter((id) => id !== 0)
+  }, [productsQuery.data])
 
+  // ✅ ids reales actuales (por si el backend mete TODOS=0)
+  const currentRealIds = useMemo(() => {
+    return current.map((p) => p.id).filter((id) => id !== 0)
+  }, [current])
 
+  // ✅ Detecta si esta tarjeta equivale a "TODOS"
+  const isAll = useMemo(() => {
+    if (allRealProductIds.length === 0) return false
+    if (currentRealIds.length === 0) return false
+
+    const allSet = new Set(allRealProductIds)
+    const curSet = new Set(currentRealIds)
+
+    if (allSet.size !== curSet.size) return false
+    for (const id of allSet) {
+      if (!curSet.has(id)) return false
+    }
+    return true
+  }, [allRealProductIds, currentRealIds])
+
+  // ✅ true si toRemove contiene *todos* los currentRealIds
+  const isRemovingAll = useMemo(() => {
+    if (!currentRealIds.length) return false
+    const r = new Set(toRemove)
+    return currentRealIds.every((id) => r.has(id))
+  }, [currentRealIds, toRemove])
+
+  // Opciones del combo (bloquea ya asignados y los que ya agregaste)
   const productsOptions = useMemo(() => {
     const all = productsQuery.data ?? []
-
-    // Evita ofrecer productos que ya están asignados (o que ya agregaste)
     const blocked = new Set<number>([...Array.from(currentIds), ...toAdd])
 
     return dataToCombo(
@@ -94,7 +122,6 @@ export default function ModalUpdateCardProducts() {
       toast.success("Productos actualizados correctamente")
       closeModal(Modals.UPDATE_CARD_PRODUCTS)
 
-      // ✅ queryKey real de tu hook useSearchPlateByClientId
       await queryClient.invalidateQueries({
         queryKey: ["plates", "by-client", props?.clientId],
       })
@@ -132,6 +159,12 @@ export default function ModalUpdateCardProducts() {
     setToRemove((prev) => prev.filter((x) => x !== id))
   }
 
+  // ✅ Marcar todos para remover con 1 click (mantiene PATCH real)
+  const handleRemoveAll = () => {
+    setToAdd([])
+    setToRemove(currentRealIds)
+  }
+
   if (!isOpen || !props) return null
 
   return (
@@ -159,6 +192,28 @@ export default function ModalUpdateCardProducts() {
             <p className="text-sm text-muted-foreground">
               Sin productos asignados.
             </p>
+          ) : isAll ? (
+            <div className="flex flex-wrap gap-2">
+              <Badge className="flex items-center gap-2">
+                <span>TODOS ({currentRealIds.length})</span>
+
+                <button
+                  type="button"
+                  title={isRemovingAll ? "Ya marcado para remover" : "Quitar TODOS"}
+                  onClick={handleRemoveAll}
+                  disabled={isRemovingAll}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </Badge>
+
+              {isRemovingAll && (
+                <p className="w-full text-xs text-muted-foreground">
+                  Todos los productos fueron marcados para remover. Presiona{" "}
+                  <strong>Guardar</strong> para confirmar.
+                </p>
+              )}
+            </div>
           ) : (
             <div className="flex flex-wrap gap-2">
               {current.map((p) => {
@@ -198,58 +253,75 @@ export default function ModalUpdateCardProducts() {
             <div className="space-y-2 pt-2">
               <p className="text-sm font-semibold">Productos a agregar</p>
               <div className="flex flex-wrap gap-2">
-                {toAdd.map((id) => {
-                  const name = productNameById.get(id) ?? `ID: ${id}`
-
-                  return (
-                    <Badge key={id} className="flex items-center gap-2">
-                      <span>{name}</span>
-                      <button
-                        type="button"
-                        title="Quitar"
-                        onClick={() =>
-                          setToAdd((prev) => prev.filter((x) => x !== id))
-                        }
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  )
-                })}
+                {toAdd.map((id) => (
+                  <Badge key={id} className="flex items-center gap-2">
+                    <span>{getProductName(id)}</span>
+                    <button
+                      type="button"
+                      title="Quitar"
+                      onClick={() =>
+                        setToAdd((prev) => prev.filter((x) => x !== id))
+                      }
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
               </div>
             </div>
           )}
-          
         </div>
+
+        {/* ✅ Aquí el cambio: si está removiendo TODOS, solo 1 badge */}
         {toRemove.length > 0 && (
-        <div className="space-y-2 pt-2">
-          <p className="text-sm font-semibold">Productos a remover</p>
+          <div className="space-y-2 pt-2">
+            <p className="text-sm font-semibold">Productos a remover</p>
 
-          <div className="flex flex-wrap gap-2">
-            {toRemove.map((id) => (
-              <Badge
-                key={id}
-                variant="destructive"
-                className="flex items-center gap-2"
-              >
-                <span>{getProductName(id)}</span>
-
-                <button
-                  type="button"
-                  title="Deshacer"
-                  onClick={() => handleUndoRemove(id)}
+            {isAll && isRemovingAll ? (
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  variant="destructive"
+                  className="flex items-center gap-2"
                 >
-                  <Plus className="h-3 w-3 rotate-45" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
+                  <span>QUITAR TODOS ({currentRealIds.length})</span>
 
+                  <button
+                    type="button"
+                    title="Deshacer"
+                    onClick={() => setToRemove([])}
+                  >
+                    <Plus className="h-3 w-3 rotate-45" />
+                  </button>
+                </Badge>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {toRemove.map((id) => (
+                  <Badge
+                    key={id}
+                    variant="destructive"
+                    className="flex items-center gap-2"
+                  >
+                    <span>{getProductName(id)}</span>
+
+                    <button
+                      type="button"
+                      title="Deshacer"
+                      onClick={() => handleUndoRemove(id)}
+                    >
+                      <Plus className="h-3 w-3 rotate-45" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="space-y-2">
           <p className="text-sm font-semibold">Agregar producto</p>
+
+            
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <ComboBox
@@ -260,11 +332,12 @@ export default function ModalUpdateCardProducts() {
               onSelect={setSelectedProductId}
               className="w-full"
               searchable
+              disabled={isAll && !isRemovingAll}
             />
             <Button
               type="button"
               onClick={handleAdd}
-              disabled={!selectedProductId}
+              disabled={!selectedProductId || (isAll && !isRemovingAll)}
             >
               <Plus className="mr-2 h-4 w-4" />
               Agregar
