@@ -47,3 +47,15 @@ export const searchPlateByClientId = async (
   })
   return response
 }
+export async function assignPlateBalance(
+  accountCardId: string,
+  body: { amount: number; note?: string },
+) {
+  // ✅ EJEMPLO:
+  // POST /accounts/cards/:accountCardId/assign-balance
+  return fetchData({
+    url: `/accounts/cards/${accountCardId}/assign-balance`,
+    method: "POST",
+    body,
+  })
+}

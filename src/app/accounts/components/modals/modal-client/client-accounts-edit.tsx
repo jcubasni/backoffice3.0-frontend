@@ -1,8 +1,9 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion"
-import { Plus, Trash2 } from "lucide-react"
+import { DollarSign, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import {
@@ -19,11 +20,12 @@ import { formatDate } from "@/shared/lib/date"
 import { TooltipButton } from "@/shared/components/ui/tooltip-button"
 
 import {
+  useAssignAccountBalance,
   useCreateAccountOnly,
   useGetAccountByClientId,
   useGetAccountTypes,
   useUpdateAccount,
-} from "@accounts/hooks/useClientsService"
+} from "@accounts/hooks/useAccountsService"
 
 import type { AccountResponse, AccountUpdateDTO } from "@accounts/types/client.type"
 import { AccountTypeForClient } from "@accounts/types/client.type"
@@ -42,16 +44,13 @@ import {
   isCreditDraftValid,
   prettyBackendMessage,
 } from "@/app/accounts/lib/accounts.helpers"
-import { get } from "lodash"
 
 type ClientAccountsEditProps = {
   clientId: string
 }
 
-// ✅ clave: permitir null para “borrado temporal” en UI
 type EditableFields = {
   creditLine?: number | null
-  balance?: number | null
   billingDays?: number | null
   creditDays?: number | null
   installments?: number | null
@@ -62,18 +61,25 @@ type EditableFields = {
 type NewAccountDraft = CreditAccountFormValue
 
 export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
+  const queryClient = useQueryClient()
+
   const { data: accounts, isLoading } = useGetAccountByClientId(clientId)
   const { data: accountTypes, isLoading: isLoadingTypes } = useGetAccountTypes()
 
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount()
   const { mutate: createAccountOnly, isPending: isCreating } = useCreateAccountOnly()
 
+  const { mutate: assignAccountBalance, isPending: isAssigningBalance } =
+    useAssignAccountBalance()
+
   const [openItem, setOpenItem] = useState<string | undefined>(undefined)
   const [editedAccounts, setEditedAccounts] = useState<Record<string, EditableFields>>({})
   const [toCreate, setToCreate] = useState<AccountTypeForClient[]>([])
 
+  // ✅ ahora incluye balance (saldo inicial)
   const [newCreditDraft, setNewCreditDraft] = useState<NewAccountDraft>({
     creditLine: undefined,
+    balance: 0,
     billingDays: undefined,
     creditDays: undefined,
     installments: undefined,
@@ -82,6 +88,8 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   })
 
   const { openModal } = useModalStore()
+
+  const isBusy = isUpdating || isAssigningBalance
 
   const existingTypeIds = useMemo(() => {
     const set = new Set<number>()
@@ -118,6 +126,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     if (type === AccountTypeForClient.CREDIT) {
       setNewCreditDraft({
         creditLine: undefined,
+        balance: 0,
         billingDays: undefined,
         creditDays: undefined,
         installments: undefined,
@@ -127,7 +136,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     }
   }
 
-  // ✅ si borras => null (no undefined)
   const handleChangeField = (
     accountId: string,
     field: keyof EditableFields,
@@ -147,7 +155,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     }))
   }
 
-  // ✅ null => "" (mantener el input vacío)
   const getFieldValue = (
     account: AccountResponse,
     accountId: string,
@@ -160,8 +167,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
       return (edited as string | undefined) ?? original ?? ""
     }
 
-    if (edited === null) return "" // 👈 clave
-
+    if (edited === null) return ""
     if (edited !== undefined) return String(edited)
 
     const originalNumber = (account as any)[field]
@@ -169,7 +175,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     return String(originalNumber)
   }
 
-  // ✅ no mandar null al backend (si quedó vacío, conserva el valor original)
   const handleSaveAccount = (account: AccountResponse) => {
     const edited = editedAccounts[account.accountId] || {}
 
@@ -197,6 +202,21 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
 
   const handleOpenAddPlate = (accountId: string) => {
     openModal(Modals.ADD_PLATE, accountId)
+  }
+
+  const handleOpenAddBalance = (account: AccountResponse) => {
+    openModal(Modals.ADD_ACCOUNT_BALANCE, {
+      currentBalance: account.balance ?? 0,
+      onAssignBalance: (amount: number, note?: string) => {
+        if (!amount || amount <= 0) return
+
+        assignAccountBalance({
+          accountId: account.accountId,
+          clientId,
+          body: { amount, note: note?.trim() || undefined },
+        })
+      },
+    })
   }
 
   const anySelected = toCreate.length > 0
@@ -239,13 +259,43 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     createAccountOnly(
       { clientId, accounts: payloadAccounts as any[] },
       {
-        onSuccess: () => {
+        onSuccess: async () => {
           toast.dismiss(ACCOUNTS_TOAST_ID)
           toast.success("Cuentas creadas correctamente", { id: ACCOUNTS_TOAST_ID })
+
+          // ✅ si el usuario puso saldo inicial, lo asignamos a la cuenta crédito recién creada
+          const initialBalance = Number(newCreditDraft.balance ?? 0)
+          if (hasCreditSelected && initialBalance > 0) {
+            // refetch de cuentas del cliente para obtener el accountId real
+            const freshAccounts = await queryClient.fetchQuery({
+              queryKey: ["accounts", "by-client", clientId],
+              queryFn: () => queryClient.getQueryData<AccountResponse[]>(["accounts", "by-client", clientId]) ?? [],
+            })
+
+            // Si lo de arriba no te trae data (por cómo está tu hook), usa fallback a invalidate + refetch:
+            // await queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", clientId] })
+            // const freshAccounts = queryClient.getQueryData<AccountResponse[]>(["accounts", "by-client", clientId]) ?? []
+
+            const creditAccount = (freshAccounts ?? []).find(
+              (a) => a.type?.id === AccountTypeForClient.CREDIT,
+            )
+
+            if (creditAccount?.accountId) {
+              assignAccountBalance({
+                accountId: creditAccount.accountId,
+                clientId,
+                body: {
+                  amount: initialBalance,
+                  note: "Saldo inicial",
+                },
+              })
+            }
+          }
 
           setToCreate([])
           setNewCreditDraft({
             creditLine: undefined,
+            balance: 0,
             billingDays: undefined,
             creditDays: undefined,
             installments: undefined,
@@ -253,6 +303,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
             endDate: "",
           })
         },
+
         onError: (err: any) => {
           toast.dismiss(ACCOUNTS_TOAST_ID)
           toast.error(prettyBackendMessage(err?.message), { id: ACCOUNTS_TOAST_ID })
@@ -298,9 +349,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                       getFieldValue(account, account.accountId, "creditLine") === ""
                         ? undefined
                         : Number(getFieldValue(account, account.accountId, "creditLine")),
-                    balance: getFieldValue(account, account.accountId, "balance") === ""
-                      ? undefined
-                      : Number(getFieldValue(account, account.accountId, "balance")),
+                    balance: account.balance ?? 0,
                     billingDays:
                       getFieldValue(account, account.accountId, "billingDays") === ""
                         ? undefined
@@ -317,11 +366,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                     endDate: getFieldValue(account, account.accountId, "endDate"),
                   }}
                   onChange={(newValue) => {
-                    handleChangeField(
-                      account.accountId,
-                      "balance",
-                      newValue.balance === undefined ? "" : String(newValue.balance),
-                    )
                     handleChangeField(
                       account.accountId,
                       "creditLine",
@@ -346,16 +390,29 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                     handleChangeField(account.accountId, "endDate", newValue.endDate ?? "")
                   }}
                   showBalance
-                  disabled={isUpdating}
-
+                  balanceReadOnly
+                  disabled={isBusy}
+                  balanceAction={
+                    <TooltipButton
+                      icon={DollarSign}
+                      tooltip="Agregar saldo"
+                      onClick={() => handleOpenAddBalance(account)}
+                      disabled={isBusy}
+                      className="text-green-500 hover:text-green-600 hover:bg-green-500/10"
+                    />
+                  }
                 />
 
                 <div className="mt-4 flex flex-wrap justify-between gap-2">
-                  <Button type="button" variant="outline" onClick={() => handleOpenAddPlate(account.accountId)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleOpenAddPlate(account.accountId)}
+                  >
                     Gestionar tarjetas
                   </Button>
 
-                  <Button type="button" onClick={() => handleSaveAccount(account)} disabled={isUpdating}>
+                  <Button type="button" onClick={() => handleSaveAccount(account)} disabled={isBusy}>
                     Guardar
                   </Button>
                 </div>
@@ -380,7 +437,11 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button type="button" variant="outline" onClick={() => handleOpenAddPlate(account.accountId)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleOpenAddPlate(account.accountId)}
+                  >
                     Gestionar tarjetas
                   </Button>
                 </div>
@@ -424,11 +485,12 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
 
                 <AccordionContent>
                   <div className="space-y-3 border-t border-border p-6">
+                    {/* ✅ ahora en CREAR mostramos saldo editable */}
                     <CreditAccountForm
                       value={newCreditDraft}
                       onChange={setNewCreditDraft}
-                      showBalance={false}
-                      disabled={isUpdating}
+                      showBalance
+                      disabled={isBusy}
                     />
                   </div>
                 </AccordionContent>

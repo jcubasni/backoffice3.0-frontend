@@ -3,6 +3,7 @@
 import type React from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { cn } from "@/lib/utils"
 
 export type CreditAccountFormValue = {
   creditLine?: number
@@ -26,6 +27,9 @@ type CreditAccountFormProps = {
 
   /** Bloquear inputs (ej: mientras guarda) */
   disabled?: boolean
+
+  /** Botón/ícono al lado del label de saldo (ej: $) */
+  balanceAction?: React.ReactNode
 }
 
 export function CreditAccountForm({
@@ -34,6 +38,7 @@ export function CreditAccountForm({
   showBalance = true,
   balanceReadOnly = false,
   disabled = false,
+  balanceAction,
 }: CreditAccountFormProps) {
   const update =
     (field: keyof CreditAccountFormValue) =>
@@ -67,7 +72,17 @@ export function CreditAccountForm({
 
       {showBalance && (
         <div className="space-y-1">
-          <Label>Saldo</Label>
+          <div className="flex items-center justify-between">
+            <Label>Saldo</Label>
+
+            {/* Acción opcional (ícono $) */}
+            {balanceAction ? (
+              <div className={cn(disabled && "pointer-events-none opacity-60")}>
+                {balanceAction}
+              </div>
+            ) : null}
+          </div>
+
           <Input
             type="number"
             value={value.balance ?? ""}

@@ -9,7 +9,7 @@ export enum CardType {
 /** Estado de la tarjeta (catálogo del backend) */
 export enum CardStatus {
   ACTIVE = 40001, // backend: ACTIVO
-  INACTIVE = 40002, // backend:INACTIVO
+  INACTIVE = 40002, // backend: INACTIVO
 }
 
 type ClientResponse = Pick<PersonInfo, "firstName" | "lastName"> & {
@@ -33,13 +33,11 @@ export type CardResponse = {
   vehicle?: VehicleResponse
   balance: number
   cardNumber: string
-  products: ProductResponse[]   // 👈 en la respuesta viene "products"
-  status: CardStatus            // 👈 usamos el enum de arriba
+  products: ProductResponse[]
+  status: CardStatus
 }
 
 /** Body de cada tarjeta en el POST /accounts/cards/{accountId} */
-// plate.type.ts
-
 export type CardCreateDTO = {
   licensePlate: string
   cardNumber: string
@@ -51,12 +49,19 @@ export type AddPlateDTO = {
   cards: CardCreateDTO[]
 }
 
-
-/** DTO para actualizar una tarjeta existente */
+/** DTO para actualizar una tarjeta (PATCH /accounts/cards/:accountCardId) */
 export type EditPlateDTO = {
   accountCardId: string
-  body: Partial<{
+  body: {
     balance: number
-  }>
+  }
 }
 
+/** DTO para agregar saldo incremental (POST /accounts/cards/:id/assign-balance) */
+export type AssignPlateBalanceDTO = {
+  accountCardId: string
+  body: {
+    amount: number
+    note?: string
+  }
+}

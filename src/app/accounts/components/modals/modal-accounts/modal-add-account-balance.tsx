@@ -1,7 +1,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useMemo } from "react"
+import { useEffect, useMemo } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
 
@@ -20,13 +20,15 @@ const addBalanceSchema = z.object({
 
 type AddBalanceSchema = z.infer<typeof addBalanceSchema>
 
-export default function ModalAssignBalance() {
+export default function ModalAddAccountBalance() {
   const dataModal = useModalStore((state) =>
-    state.openModals.find((modal) => modal.id === Modals.UPDATE_BALANCE),
-  )?.prop as {
-    currentBalance?: number
-    onAssignBalance: (amount: number, note?: string) => void
-  }
+    state.openModals.find((modal) => modal.id === Modals.ADD_ACCOUNT_BALANCE),
+  )?.prop as
+    | {
+        currentBalance?: number
+        onAssignBalance: (amount: number, note?: string) => void
+      }
+    | undefined
 
   const { closeModal } = useModalStore()
 
@@ -40,6 +42,11 @@ export default function ModalAssignBalance() {
     },
   })
 
+  // ✅ Si abres el modal varias veces, resetea el form cada vez
+  useEffect(() => {
+    form.reset({ amount: 0, note: "" })
+  }, [dataModal?.currentBalance]) // suficiente para "detectar" reapertura
+
   const amount = form.watch("amount") ?? 0
 
   const nextBalance = useMemo(() => {
@@ -48,21 +55,26 @@ export default function ModalAssignBalance() {
   }, [current, amount])
 
   const handleSubmit = (data: AddBalanceSchema) => {
-    if (dataModal?.onAssignBalance) {
-      dataModal.onAssignBalance(data.amount, data.note)
-    }
-    closeModal(Modals.UPDATE_BALANCE)
-    form.reset()
-  }
+  const cleanedNote = (data.note ?? "").trim()
+
+  dataModal?.onAssignBalance(
+    data.amount,
+    cleanedNote.length > 0 ? cleanedNote : "Ajuste de saldo",
+  )
+
+  closeModal(Modals.ADD_ACCOUNT_BALANCE)
+  form.reset({ amount: 0, note: "" })
+}
+
 
   const handleClose = () => {
-    closeModal(Modals.UPDATE_BALANCE)
-    form.reset()
+    closeModal(Modals.ADD_ACCOUNT_BALANCE)
+    form.reset({ amount: 0, note: "" })
   }
 
   return (
     <Modal
-      modalId={Modals.UPDATE_BALANCE}
+      modalId={Modals.ADD_ACCOUNT_BALANCE}
       title="Agregar saldo"
       className="md:max-w-md!"
       onClose={handleClose}
@@ -80,9 +92,7 @@ export default function ModalAssignBalance() {
         </div>
 
         <div className="space-y-2">
-          <p className="text-slate-600 text-sm">
-            Ingresa el <b>monto a agregar</b> (este endpoint suma el saldo).
-          </p>
+         
 
           <InputForm
             label="Monto a agregar (S/)"

@@ -32,7 +32,7 @@ function BlockedTabCard({
   title,
   message,
 }: {
-  title: string
+  title: string 
   message: React.ReactNode
 }) {
   return (

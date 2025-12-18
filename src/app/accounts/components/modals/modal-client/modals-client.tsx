@@ -32,6 +32,11 @@ const modals = [
     modalId: "modal-preview-clients-pdf",
     component: () => import("./modal-preview-clients-pdf"),
   },
+  {
+  modalId: Modals.ADD_ACCOUNT_BALANCE,
+  component: () => import("../modal-accounts/modal-add-account-balance"),
+},
+
 ]
 
 export const ModalsClient = () => {
