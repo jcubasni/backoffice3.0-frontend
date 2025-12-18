@@ -76,7 +76,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   const [editedAccounts, setEditedAccounts] = useState<Record<string, EditableFields>>({})
   const [toCreate, setToCreate] = useState<AccountTypeForClient[]>([])
 
-  // ✅ ahora incluye balance (saldo inicial)
   const [newCreditDraft, setNewCreditDraft] = useState<NewAccountDraft>({
     creditLine: undefined,
     balance: 0,
@@ -90,6 +89,21 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   const { openModal } = useModalStore()
 
   const isBusy = isUpdating || isAssigningBalance
+
+  // ✅ helpers: detectar si una cuenta tiene cambios y poder descartarlos
+  const hasEdits = (accountId: string) => {
+    const edited = editedAccounts[accountId]
+    return !!edited && Object.keys(edited).length > 0
+  }
+
+  const discardEdits = (accountId: string) => {
+    setEditedAccounts((prev) => {
+      const next = { ...prev }
+      delete next[accountId]
+      return next
+    })
+    toast.info("Cambios descartados.", { id: `discard-${accountId}` })
+  }
 
   const existingTypeIds = useMemo(() => {
     const set = new Set<number>()
@@ -193,11 +207,30 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
       endDate: edited.endDate !== undefined ? edited.endDate : account.endDate,
     }
 
-    updateAccount({
-      accountId: account.accountId,
-      clientId,
-      data: body,
-    })
+    updateAccount(
+      {
+        accountId: account.accountId,
+        clientId,
+        data: body,
+      },
+      {
+        onSuccess: async () => {
+          toast.success("Cuenta actualizada.", { id: `save-${account.accountId}` })
+
+          // ✅ al guardar, se limpian los edits -> el tachito desaparece
+          setEditedAccounts((prev) => {
+            const next = { ...prev }
+            delete next[account.accountId]
+            return next
+          })
+
+          await queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", clientId] })
+        },
+        onError: (err: any) => {
+          toast.error(prettyBackendMessage(err?.message))
+        },
+      },
+    )
   }
 
   const handleOpenAddPlate = (accountId: string) => {
@@ -263,18 +296,11 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
           toast.dismiss(ACCOUNTS_TOAST_ID)
           toast.success("Cuentas creadas correctamente", { id: ACCOUNTS_TOAST_ID })
 
-          // ✅ si el usuario puso saldo inicial, lo asignamos a la cuenta crédito recién creada
           const initialBalance = Number(newCreditDraft.balance ?? 0)
           if (hasCreditSelected && initialBalance > 0) {
-            // refetch de cuentas del cliente para obtener el accountId real
-            const freshAccounts = await queryClient.fetchQuery({
-              queryKey: ["accounts", "by-client", clientId],
-              queryFn: () => queryClient.getQueryData<AccountResponse[]>(["accounts", "by-client", clientId]) ?? [],
-            })
-
-            // Si lo de arriba no te trae data (por cómo está tu hook), usa fallback a invalidate + refetch:
-            // await queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", clientId] })
-            // const freshAccounts = queryClient.getQueryData<AccountResponse[]>(["accounts", "by-client", clientId]) ?? []
+            await queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", clientId] })
+            const freshAccounts =
+              queryClient.getQueryData<AccountResponse[]>(["accounts", "by-client", clientId]) ?? []
 
             const creditAccount = (freshAccounts ?? []).find(
               (a) => a.type?.id === AccountTypeForClient.CREDIT,
@@ -284,10 +310,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
               assignAccountBalance({
                 accountId: creditAccount.accountId,
                 clientId,
-                body: {
-                  amount: initialBalance,
-                  note: "Saldo inicial",
-                },
+                body: { amount: initialBalance, note: "Saldo inicial" },
               })
             }
           }
@@ -319,6 +342,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
 
     const itemValue = account.accountId
     const isCredit = typeId === AccountTypeForClient.CREDIT
+    const accountHasEdits = hasEdits(account.accountId)
 
     return (
       <AccordionItem key={account.accountId} value={itemValue} className="border-none">
@@ -333,11 +357,14 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
               </div>
             </AccordionTrigger>
 
-            <TooltipButton
-              icon={Trash2}
-              tooltip="Eliminar cuenta"
-              onClick={() => console.log("Eliminar cuenta (futuro DELETE)", account.accountId)}
-            />
+            {/* ✅ Tachito SOLO si hay cambios -> Descartar */}
+            {accountHasEdits && (
+              <TooltipButton
+                icon={Trash2}
+                tooltip="Descartar cambios"
+                onClick={() => discardEdits(account.accountId)}
+              />
+            )}
           </div>
 
           <AccordionContent className="border-t border-border px-4 pb-4 pt-3">
@@ -412,7 +439,11 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                     Gestionar tarjetas
                   </Button>
 
-                  <Button type="button" onClick={() => handleSaveAccount(account)} disabled={isBusy}>
+                  <Button
+                    type="button"
+                    onClick={() => handleSaveAccount(account)}
+                    disabled={isBusy || !accountHasEdits} // ✅ no guardar si no hay cambios
+                  >
                     Guardar
                   </Button>
                 </div>
@@ -480,12 +511,12 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                     </div>
                   </AccordionTrigger>
 
+                  {/* ✅ aquí sí se mantiene: es para quitar la cuenta NUEVA antes de guardar */}
                   <TooltipButton icon={Trash2} tooltip="Quitar" onClick={() => removeToCreate(type)} />
                 </div>
 
                 <AccordionContent>
                   <div className="space-y-3 border-t border-border p-6">
-                    {/* ✅ ahora en CREAR mostramos saldo editable */}
                     <CreditAccountForm
                       value={newCreditDraft}
                       onChange={setNewCreditDraft}

@@ -17,7 +17,7 @@ export default function ModalPreviewClientsPdf() {
   if (!modal || !clients) return null
 
   return (
-    <Modal modalId={MODAL_ID} title="Vista previa – Reporte de Clientes" size="full">
+    <Modal modalId={MODAL_ID} title="Vista previa – Reporte de Clientes">
       <PDFViewer className="w-full h-[85vh]">
         <ClientsPdfDocument clients={clients} />
       </PDFViewer>

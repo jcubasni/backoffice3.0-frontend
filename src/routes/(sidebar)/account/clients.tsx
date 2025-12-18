@@ -27,7 +27,6 @@ import {
   exportClientsToCSV,
   mapClientsToExport,
 } from "@/app/accounts/utils/clients-export"
-import { generateClientsPDF } from "@/app/accounts/utils/clients-export-pdf"
 
 import { Dropdown } from "@/shared/components/ui/dropdown"
 import { getTableColumnOptions } from "@/app/configurations/shared/lib/table-column-options"

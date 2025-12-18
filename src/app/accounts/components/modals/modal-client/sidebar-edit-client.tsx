@@ -2,18 +2,24 @@
 
 import { Upload, User, Phone, Mail, MapPin, FileText } from "lucide-react"
 import { useId } from "react"
+import { toast } from "sonner"
+
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useModalStore } from "@/shared/store/modal.store"
 import { Modals } from "@/app/accounts/types/modals-name"
-import { toast } from "sonner"
+
+// ✅ usa el mismo mapper que ya usas en la tabla
+import { mapClientsToExport } from "@/app/accounts/utils/clients-export" // <-- AJUSTA LA RUTA si es otra
+
+const PDF_MODAL_ID = "modal-preview-clients-pdf"
 
 export function SidebarEditClient() {
   const photoInputId = useId()
 
   const dataModal = useModalStore((state) =>
     state.openModals.find((m) => m.id === Modals.EDIT_CLIENT),
-  )?.prop
+  )?.prop as any
 
   const userName = dataModal
     ? `${dataModal?.firstName ?? ""} ${dataModal?.lastName ?? ""}`.trim() ||
@@ -24,8 +30,7 @@ export function SidebarEditClient() {
   const email = dataModal?.email || "No registrado"
   const address = dataModal?.address || "No registrada"
 
-  // Foto futura
-  const photoUrl = (dataModal as any)?.photoUrl ?? null
+  const photoUrl = dataModal?.photoUrl ?? null
 
   const handleOpenPdf = () => {
     if (!dataModal) {
@@ -35,10 +40,11 @@ export function SidebarEditClient() {
       return
     }
 
-    useModalStore.getState().openModal("modal-preview-clients-pdf", {
-      // ✅ por ahora mandamos 1 cliente (luego lo mapeamos a ClientExport si tu modal lo requiere)
-      clients: [dataModal],
-      columnVisibility: {},
+    // ✅ mandamos solo 1 cliente como reporte
+    const exportClients = mapClientsToExport([dataModal])
+
+    useModalStore.getState().openModal(PDF_MODAL_ID, {
+      clients: exportClients,
     })
   }
 
@@ -121,7 +127,7 @@ export function SidebarEditClient() {
         </div>
       </section>
 
-      {/* BOTÓN PDF */}
+      {/* BOTÓN VER PDF */}
       <div className="mt-auto">
         <Button
           size="header"
