@@ -1,4 +1,4 @@
-import { useEffect } from "react"
+// combo-box-form.tsx
 import { useController, useFormContext } from "react-hook-form"
 import { cn } from "@/lib/utils"
 import { ComboBox, ComboBoxProps } from "../ui/combo-box"
@@ -16,59 +16,36 @@ export function ComboBoxForm({
   classLabel,
   className,
   classContainer,
-  defaultValue,
   onSelect,
   options,
   ...props
 }: ComboBoxFormProps) {
   const { control } = useFormContext()
+
   const {
     field: { value, onChange, ...fieldProps },
     fieldState: { invalid },
   } = useController({ control, name })
 
-  const normalize = (v: unknown) => (v === null || v === undefined ? "" : String(v))
-
-  const handleSelect = (selectedValue: unknown) => {
-    const next = normalize(selectedValue)
-    onChange(next)
-    onSelect?.(next)
+  const handleSelect = (selectedValue: string) => {
+    onChange(selectedValue)
+    onSelect?.(selectedValue)
   }
-
-  useEffect(() => {
-    // ✅ set defaultValue
-    if (defaultValue !== undefined && defaultValue !== null) {
-      onChange(normalize(defaultValue))
-      return
-    }
-
-    // ✅ si el value actual no existe en options (cuando ya cargaron), limpiar
-    const current = normalize(value)
-    if (!current) return
-    if (!options || options.length === 0) return
-
-    const exists = options.some((opt) => normalize(opt.value) === current)
-    if (!exists) {
-      const timeoutId = setTimeout(() => {
-        const stillExists = options.some((opt) => normalize(opt.value) === current)
-        if (!stillExists) onChange("") // 👈 mejor "" que undefined
-      }, 100)
-
-      return () => clearTimeout(timeoutId)
-    }
-  }, [defaultValue, options, value, onChange])
 
   return (
     <ComboBox
       {...props}
       {...fieldProps}
-      defaultValue={normalize(value)} // 👈 lo que uses en tu ComboBox actual
+      value={value ?? ""}  // ✅ CONTROLADO por RHF
       onSelect={handleSelect}
       label={label}
       name={name}
       classLabel={cn(classLabel, invalid && "text-red-400")}
       className={cn(className, invalid && "border-red-400")}
-      classContainer={cn(classContainer, invalid && "transition-colors duration-300")}
+      classContainer={cn(
+        classContainer,
+        invalid && "transition-colors duration-300",
+      )}
       options={options}
     />
   )

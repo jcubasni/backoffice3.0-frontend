@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { Search } from "lucide-react"
 import { useFormContext, useWatch } from "react-hook-form"
 
@@ -22,33 +22,55 @@ import {
 
 export function ClientInfo() {
   const form = useFormContext<CreateClientSchema>()
+
   const documentTypes = useGetDocumentTypes()
+  const departmentsQuery = useGetDepartments()
 
   const [documentType, documentNumber, departmentId, provinceId] = useWatch({
     control: form.control,
     name: ["documentType", "documentNumber", "departmentId", "provinceId"],
   })
 
-  // ✅ queries Ubigeo
-  const departmentsQuery = useGetDepartments()
   const provincesQuery = useGetProvinces(departmentId)
   const districtsQuery = useGetDistricts(departmentId, provinceId)
 
-  // ✅ reset cascada
+  // ✅ options memoizadas (IMPORTANTE)
+  const documentTypeOptions = useMemo(
+    () => dataToCombo(documentTypes.data ?? [], "id", "name"),
+    [documentTypes.data],
+  )
+
+  const departmentOptions = useMemo(
+    () => dataToCombo(departmentsQuery.data ?? [], "id", "name"),
+    [departmentsQuery.data],
+  )
+
+  const provinceOptions = useMemo(
+    () => dataToCombo(provincesQuery.data ?? [], "id", "name"),
+    [provincesQuery.data],
+  )
+
+  const districtOptions = useMemo(
+    () => dataToCombo(districtsQuery.data ?? [], "id", "name"),
+    [districtsQuery.data],
+  )
+
+  // ✅ reset cascada (con guardas)
   useEffect(() => {
-    form.setValue("provinceId", "")
-    form.setValue("districtId", "")
-    form.trigger(["provinceId", "districtId"])
+    const currentProvince = form.getValues("provinceId")
+    const currentDistrict = form.getValues("districtId")
+
+    if (currentProvince) form.setValue("provinceId", "")
+    if (currentDistrict) form.setValue("districtId", "")
   }, [departmentId, form])
 
   useEffect(() => {
-    form.setValue("districtId", "")
-    form.trigger("districtId")
+    const currentDistrict = form.getValues("districtId")
+    if (currentDistrict) form.setValue("districtId", "")
   }, [provinceId, form])
 
   const handleSearchWithValidation = async () => {
-    const isValid = await form.trigger(["documentType", "documentNumber"])
-    return isValid
+    return form.trigger(["documentType", "documentNumber"])
   }
 
   const { handleSearch, handleKeyDown } = useSearchDocument({
@@ -57,10 +79,11 @@ export function ClientInfo() {
     shouldValidate: handleSearchWithValidation,
     onSuccess: (data) => {
       const { firstName, lastName, fiscalAddress: address } = data
+
       form.setValue("firstName", firstName)
       form.setValue("lastName", lastName ?? "")
       form.setValue("address", address ?? "")
-      form.trigger(["firstName", "lastName", "address"])
+ 
     },
   })
 
@@ -75,12 +98,9 @@ export function ClientInfo() {
         label="Tipo de documento"
         className="w-full!"
         searchable
-        options={dataToCombo(documentTypes.data, "id", "name")}
-        onSelect={(value) => {
-          // asegura que RHF tenga el valor (por si ComboBoxForm no hace field.onChange internamente)
-          form.setValue("documentType", value as any)
-          form.trigger("documentNumber")
-        }}
+        options={documentTypeOptions}
+        // ✅ NO vuelvas a setValue manualmente (ComboBoxForm ya hace onChange)
+        onSelect={() => form.trigger("documentNumber")}
       />
 
       <InputForm
@@ -107,38 +127,38 @@ export function ClientInfo() {
         )}
       />
 
-      <InputForm label="Direccion" name="address" classContainer="col-span-2" />
+      <InputForm label="Dirección" name="address" classContainer="col-span-2" />
 
-      {/* ✅ Departamento */}
       <ComboBoxForm
         name="departmentId"
         label="Departamento"
         className="w-full!"
         searchable
-        options={dataToCombo(departmentsQuery.data ?? [], "id", "name")}
+        options={departmentOptions}
+        isLoading={departmentsQuery.isLoading}
       />
 
-      {/* ✅ Provincia */}
       <ComboBoxForm
         name="provinceId"
         label="Provincia"
         className="w-full!"
         searchable
         disabled={!departmentId}
-        options={dataToCombo(provincesQuery.data ?? [], "id", "name")}
+        options={provinceOptions}
+        isLoading={provincesQuery.isLoading}
       />
 
-      {/* ✅ Distrito */}
       <ComboBoxForm
         name="districtId"
         label="Distrito"
         className="w-full!"
         searchable
-        disabled={!provinceId}
-        options={dataToCombo(districtsQuery.data ?? [], "id", "name")}
+        disabled={!departmentId || !provinceId}
+        options={districtOptions}
+        isLoading={districtsQuery.isLoading}
       />
 
-      <InputForm label="Correo electronico" name="email" />
+      <InputForm label="Correo electrónico" name="email" />
       <InputForm label="Teléfono" name="phone" />
     </div>
   )

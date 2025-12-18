@@ -3,8 +3,8 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { AnimatePresence, motion } from "framer-motion"
 import { Save } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { useForm, useWatch } from "react-hook-form"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useForm } from "react-hook-form"
 
 import { SidebarEditClient } from "./sidebar-edit-client"
 import { ClientEditInfo } from "./client-edit-info"
@@ -27,16 +27,18 @@ import { FormWrapper } from "@/shared/components/form/form-wrapper"
 import Modal from "@/shared/components/ui/modal"
 import { useModalStore } from "@/shared/store/modal.store"
 
+type ClientForModal = ClientResponse & {
+  address?: string
+  phone?: string
+  districtId?: string
+}
+
 export default function ModalEditClients() {
   const [activeTab, setActiveTab] = useState("misDatos")
 
   const dataModal = useModalStore((state) =>
     state.openModals.find((modal) => modal.id === Modals.EDIT_CLIENT),
-  )?.prop as (ClientResponse & {
-    address?: string
-    phone?: string
-    districtId?: string
-  }) | undefined
+  )?.prop as ClientForModal | undefined
 
   const clientId = dataModal?.id
   const { mutate, isPending } = useEditClient()
@@ -56,9 +58,18 @@ export default function ModalEditClients() {
     },
   })
 
-  // ✅ cargar data base del modal
+  // ✅ Guard para no re-hidratar varias veces
+  const hydratedRef = useRef(false)
+
+  // ✅ Usamos el districtId inicial del modal (NO el watch del form)
+  const initialDistrictId = dataModal?.districtId ?? ""
+  const districtByIdQuery = useGetDistrictById(initialDistrictId)
+
+  // ✅ 1) Reset base al abrir el modal
   useEffect(() => {
     if (!dataModal) return
+
+    hydratedRef.current = false // 👈 importante: nuevo cliente => nueva hidración
 
     form.reset({
       firstName: dataModal.firstName ?? "",
@@ -70,34 +81,44 @@ export default function ModalEditClients() {
       email: dataModal.email ?? "",
       phone: dataModal.phoneNumber ?? dataModal.phone ?? "",
     })
+
+    setActiveTab("misDatos")
   }, [dataModal, form])
 
-  // ✅ precargar departmentId + provinceId usando districtId
-  const districtId = useWatch({ control: form.control, name: "districtId" })
-  const districtByIdQuery = useGetDistrictById(districtId)
-
+  // ✅ 2) Precargar dep/prov SOLO 1 VEZ (cuando llega districtById)
   useEffect(() => {
+    if (!dataModal) return
+    if (hydratedRef.current) return
     if (!districtByIdQuery.data) return
 
-    form.setValue("departmentId", districtByIdQuery.data.department.id)
-    form.setValue("provinceId", districtByIdQuery.data.province.id)
-    form.trigger(["departmentId", "provinceId", "districtId"])
-  }, [districtByIdQuery.data, form])
+    hydratedRef.current = true
+
+    form.setValue("departmentId", districtByIdQuery.data.department.id, {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    })
+
+    form.setValue("provinceId", districtByIdQuery.data.province.id, {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    })
+
+    // 👇 districtId ya lo setea el reset()
+  }, [dataModal, districtByIdQuery.data, form])
 
   const handleSubmit = (data: EditClientSchema) => {
     if (!clientId) return
 
-      const payload = {
-  firstName: data.firstName,
-  lastName: data.lastName,
-  address: data.address,
-  districtId: data.districtId, // ✅ ESTE ES EL CLAVE
-  email: data.email,
-  phone: data.phone,
-}
-
-
-
+    const payload = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      address: data.address,
+      districtId: data.districtId, // ✅ CLAVE
+      email: data.email,
+      phone: data.phone,
+    }
 
     mutate({ clientId, data: payload })
   }
@@ -159,11 +180,7 @@ export default function ModalEditClients() {
         <SidebarEditClient onSubmit={submitForm} disabled={isPending} />
 
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full flex-1"
-          >
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full flex-1">
             <TabsList className="mx-auto mb-6 h-auto w-fit gap-1.5 rounded-xl p-1 md:gap-4">
               {editableTabs.map((tab) => {
                 const isActive = activeTab === tab.id

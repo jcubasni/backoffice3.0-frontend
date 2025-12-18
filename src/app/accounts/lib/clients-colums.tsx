@@ -138,44 +138,42 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
   },
 
   // 📌 Departamento
+
 {
   id: "department",
   header: "Departamento",
-  accessorFn: (row) => getPrimaryAddress(row)?.department?.name ?? "",
+  accessorFn: (row) => toUbigeoName(getPrimaryAddress(row)?.department),
   enableHiding: true,
 },
-
-// 📌 Provincia
 {
   id: "province",
   header: "Provincia",
-  accessorFn: (row) => getPrimaryAddress(row)?.province?.name ?? "",
+  accessorFn: (row) => toUbigeoName(getPrimaryAddress(row)?.province),
   enableHiding: true,
 },
-
-// 📌 Distrito
 {
   id: "district",
   header: "Distrito",
-  accessorFn: (row) => getPrimaryAddress(row)?.district?.name ?? "",
+  accessorFn: (row) => toUbigeoName(getPrimaryAddress(row)?.district),
   enableHiding: true,
 },
 
-  {
-    id: "accountStatus",
-    header: "Bloquear cuenta",
-    enableHiding: false,
-    cell: ({ row }) => {
-      const accounts = (row.original as any).accounts as
-        | { status: boolean }[]
-        | undefined
 
-      if (!accounts?.length) return null
+  // {
+  //   id: "accountStatus",
+  //   header: "Bloquear cuenta",
+  //   enableHiding: false,
+  //   cell: ({ row }) => {
+  //     const accounts = (row.original as any).accounts as
+  //       | { status: boolean }[]
+  //       | undefined
 
-      const state = accounts[0]?.status
-      return <Switch defaultChecked={state} />
-    },
-  },
+  //     if (!accounts?.length) return null
+
+  //     const state = accounts[0]?.status
+  //     return <Switch defaultChecked={state} />
+  //   },
+  // },
 
   {
     id: "actions",
@@ -186,14 +184,14 @@ export const clientsColumns: ColumnDef<ClientResponse>[] = [
       const client = row.original
       const primary = getPrimaryAddress(client)
 
-      const clientForModal = {
-    ...client,
-    address: primary?.addressLine1 ?? "",
-    department: primary?.department?.name ?? "",
-    province: primary?.province?.name ?? "",
-    district: primary?.district?.name ?? "",
-    districtId: primary?.district?.id ?? undefined, // ✅ este sí existe
-  }
+     const clientForModal = {
+  ...client,
+  address: primary?.addressLine1 ?? "",
+  departmentId: primary?.department?.id ?? "",
+  provinceId: primary?.province?.id ?? "",
+  districtId: primary?.district?.id ?? "",
+}
+
 
 
       return (

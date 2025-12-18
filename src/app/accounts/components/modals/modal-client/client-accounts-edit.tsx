@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion"
 import { Plus, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   Accordion,
@@ -11,7 +12,6 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion"
 import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/shared/lib/number"
@@ -37,22 +37,28 @@ import {
   type CreditAccountFormValue,
 } from "@/app/accounts/components/accounts/credit-account-form"
 
+import {
+  ACCOUNTS_TOAST_ID,
+  isCreditDraftValid,
+  prettyBackendMessage,
+} from "@/app/accounts/lib/accounts.helpers"
+import { get } from "lodash"
+
 type ClientAccountsEditProps = {
   clientId: string
 }
 
-// Campos editables para una cuenta (existente)
+// ✅ clave: permitir null para “borrado temporal” en UI
 type EditableFields = {
-  creditLine?: number
-  balance?: number
-  billingDays?: number
-  creditDays?: number
-  installments?: number
+  creditLine?: number | null
+  balance?: number | null
+  billingDays?: number | null
+  creditDays?: number | null
+  installments?: number | null
   startDate?: string
   endDate?: string
 }
 
-// Draft para crear CUENTA CRÉDITO (nuevo) usando UI reutilizada
 type NewAccountDraft = CreditAccountFormValue
 
 export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
@@ -60,21 +66,12 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   const { data: accountTypes, isLoading: isLoadingTypes } = useGetAccountTypes()
 
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount()
-  const { mutate: createAccountOnly, isPending: isCreating } =
-    useCreateAccountOnly()
+  const { mutate: createAccountOnly, isPending: isCreating } = useCreateAccountOnly()
 
-  // 🔽 acordeones cerrados al inicio
   const [openItem, setOpenItem] = useState<string | undefined>(undefined)
-
-  // 🔄 estado local de edición por cuenta existente
-  const [editedAccounts, setEditedAccounts] = useState<
-    Record<string, EditableFields>
-  >({})
-
-  // ✅ cuentas nuevas a crear en este modal (solo faltantes)
+  const [editedAccounts, setEditedAccounts] = useState<Record<string, EditableFields>>({})
   const [toCreate, setToCreate] = useState<AccountTypeForClient[]>([])
 
-  // ✅ draft solo para crédito (cuando vas a CREAR crédito)
   const [newCreditDraft, setNewCreditDraft] = useState<NewAccountDraft>({
     creditLine: undefined,
     billingDays: undefined,
@@ -86,9 +83,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
 
   const { openModal } = useModalStore()
 
-  // -----------------------------------
-  // helpers
-  // -----------------------------------
   const existingTypeIds = useMemo(() => {
     const set = new Set<number>()
     ;(accounts ?? []).forEach((a) => {
@@ -100,13 +94,8 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
 
   const availableButtons = useMemo(() => {
     const valid = Object.values(AccountTypeForClient)
+    const fromApi = (accountTypes ?? []).filter((t) => valid.includes(t.id as any))
 
-    // Tomamos la data de /accounts/types para mostrar label real (name)
-    const fromApi = (accountTypes ?? []).filter((t) =>
-      valid.includes(t.id as any),
-    )
-
-    // Nos quedamos con los que NO existen aún en backend y NO están ya en toCreate
     return fromApi
       .filter((t) => !existingTypeIds.has(t.id))
       .filter((t) => !toCreate.includes(t.id as AccountTypeForClient))
@@ -126,7 +115,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
   const removeToCreate = (type: AccountTypeForClient) => {
     setToCreate((prev) => prev.filter((t) => t !== type))
 
-    // si removemos crédito, limpiamos draft
     if (type === AccountTypeForClient.CREDIT) {
       setNewCreditDraft({
         creditLine: undefined,
@@ -139,6 +127,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     }
   }
 
+  // ✅ si borras => null (no undefined)
   const handleChangeField = (
     accountId: string,
     field: keyof EditableFields,
@@ -152,12 +141,13 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
           field === "startDate" || field === "endDate"
             ? value
             : value === ""
-              ? undefined
+              ? null
               : Number(value),
       },
     }))
   }
 
+  // ✅ null => "" (mantener el input vacío)
   const getFieldValue = (
     account: AccountResponse,
     accountId: string,
@@ -166,32 +156,34 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     const edited = editedAccounts[accountId]?.[field]
 
     if (field === "startDate" || field === "endDate") {
-      const original =
-        field === "startDate" ? account.startDate : account.endDate
+      const original = field === "startDate" ? account.startDate : account.endDate
       return (edited as string | undefined) ?? original ?? ""
     }
 
-    const originalNumber =
-      (account as any)[field] !== undefined ? (account as any)[field] : ""
-    return edited !== undefined ? String(edited) : String(originalNumber ?? "")
+    if (edited === null) return "" // 👈 clave
+
+    if (edited !== undefined) return String(edited)
+
+    const originalNumber = (account as any)[field]
+    if (originalNumber === null || originalNumber === undefined) return ""
+    return String(originalNumber)
   }
 
+  // ✅ no mandar null al backend (si quedó vacío, conserva el valor original)
   const handleSaveAccount = (account: AccountResponse) => {
     const edited = editedAccounts[account.accountId] || {}
 
+    const pickNumber = (key: keyof EditableFields, fallback: number | undefined) => {
+      const v = edited[key]
+      if (v === null) return fallback
+      return v !== undefined ? (v as number) : fallback
+    }
+
     const body: AccountUpdateDTO = {
-      creditLine:
-        edited.creditLine !== undefined ? edited.creditLine : account.creditLine,
-      billingDays:
-        edited.billingDays !== undefined
-          ? edited.billingDays
-          : account.billingDays,
-      creditDays:
-        edited.creditDays !== undefined ? edited.creditDays : account.creditDays,
-      installments:
-        edited.installments !== undefined
-          ? edited.installments
-          : account.installments,
+      creditLine: pickNumber("creditLine", account.creditLine),
+      billingDays: pickNumber("billingDays", account.billingDays),
+      creditDays: pickNumber("creditDays", account.creditDays),
+      installments: pickNumber("installments", account.installments),
       startDate: edited.startDate !== undefined ? edited.startDate : account.startDate,
       endDate: edited.endDate !== undefined ? edited.endDate : account.endDate,
     }
@@ -207,20 +199,36 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     openModal(Modals.ADD_PLATE, accountId)
   }
 
-  // -----------------------------------
-  // ✅ POST /accounts/only (crear faltantes)
-  // -----------------------------------
+  const anySelected = toCreate.length > 0
+  const hasCreditSelected = toCreate.includes(AccountTypeForClient.CREDIT)
+
+  const canSaveNewAccounts =
+    anySelected &&
+    (!hasCreditSelected || isCreditDraftValid(newCreditDraft)) &&
+    !isCreating &&
+    !isLoadingTypes
+
   const handleSaveNewAccounts = () => {
-    if (toCreate.length === 0) return
+    if (!canSaveNewAccounts) {
+      if (!anySelected) {
+        toast.info("Selecciona al menos un tipo de cuenta.")
+        return
+      }
+      if (hasCreditSelected && !isCreditDraftValid(newCreditDraft)) {
+        toast.info("Completa los campos de Crédito (incluye fechas).")
+        return
+      }
+      return
+    }
 
     const payloadAccounts = toCreate.map((type) => {
       if (type === AccountTypeForClient.CREDIT) {
         return {
           accountTypeId: type,
-          creditLine: newCreditDraft.creditLine ?? 0,
-          billingDays: newCreditDraft.billingDays ?? 0,
-          creditDays: newCreditDraft.creditDays ?? 0,
-          installments: newCreditDraft.installments ?? 0,
+          creditLine: newCreditDraft.creditLine!,
+          billingDays: newCreditDraft.billingDays!,
+          creditDays: newCreditDraft.creditDays!,
+          installments: newCreditDraft.installments!,
           startDate: newCreditDraft.startDate || undefined,
           endDate: newCreditDraft.endDate || undefined,
         }
@@ -232,6 +240,9 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
       { clientId, accounts: payloadAccounts as any[] },
       {
         onSuccess: () => {
+          toast.dismiss(ACCOUNTS_TOAST_ID)
+          toast.success("Cuentas creadas correctamente", { id: ACCOUNTS_TOAST_ID })
+
           setToCreate([])
           setNewCreditDraft({
             creditLine: undefined,
@@ -242,13 +253,14 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
             endDate: "",
           })
         },
+        onError: (err: any) => {
+          toast.dismiss(ACCOUNTS_TOAST_ID)
+          toast.error(prettyBackendMessage(err?.message), { id: ACCOUNTS_TOAST_ID })
+        },
       },
     )
   }
 
-  // -----------------------------------
-  // render cuenta existente (acordeón)
-  // -----------------------------------
   const renderAccountCard = (account: AccountResponse) => {
     const typeId = account.type?.id as AccountTypeForClient | undefined
     const accountLabel = account.type?.description ?? "Sin tipo"
@@ -258,19 +270,13 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     const isCredit = typeId === AccountTypeForClient.CREDIT
 
     return (
-      <AccordionItem
-        key={account.accountId}
-        value={itemValue}
-        className="border-none"
-      >
+      <AccordionItem key={account.accountId} value={itemValue} className="border-none">
         <Card className="overflow-hidden bg-sidebar/60">
           <div className="flex items-center justify-between px-4 py-3">
             <AccordionTrigger className="flex-1 py-0 hover:no-underline">
               <div className="flex items-center gap-3 text-left">
-                <span
-                  className={cn("h-3 w-3 rounded-full", colorStyles?.color)}
-                />
-                <span className="font-semibold text-foreground">
+                <span className={cn("h-3 w-3 rounded-full", colorStyles?.color)} />
+                <span className="text-base font-semibold leading-none text-foreground">
                   Cuenta {accountLabel}
                 </span>
               </div>
@@ -279,117 +285,89 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
             <TooltipButton
               icon={Trash2}
               tooltip="Eliminar cuenta"
-              onClick={() =>
-                console.log("Eliminar cuenta (futuro DELETE)", account.accountId)
-              }
+              onClick={() => console.log("Eliminar cuenta (futuro DELETE)", account.accountId)}
             />
           </div>
 
           <AccordionContent className="border-t border-border px-4 pb-4 pt-3">
-            <div className="mb-4 space-y-1 text-sm">
-              <p className="text-muted-foreground">
-                N° documento:{" "}
-                <span className="text-foreground">{account.documentNumber}</span>
-              </p>
-              <p className="text-muted-foreground">
-                Cliente:{" "}
-                <span className="text-foreground">{account.clientName}</span>
-              </p>
-              <p className="text-muted-foreground">
-                Dirección:{" "}
-                <span className="text-foreground">{account.address || "-"}</span>
-              </p>
-            </div>
-
             {isCredit ? (
-            <div className="space-y-4">
-              <CreditAccountForm
-                value={{
-                  creditLine: Number(
-                    getFieldValue(account, account.accountId, "creditLine") || 0,
-                  ),
-                  balance: account.balance ?? 0,
-                  billingDays: Number(
-                    getFieldValue(account, account.accountId, "billingDays") || 0,
-                  ),
-                  creditDays: Number(
-                    getFieldValue(account, account.accountId, "creditDays") || 0,
-                  ),
-                  installments: Number(
-                    getFieldValue(account, account.accountId, "installments") || 0,
-                  ),
-                  startDate: getFieldValue(account, account.accountId, "startDate"),
-                  endDate: getFieldValue(account, account.accountId, "endDate"),
-                }}
-                onChange={(newValue) => {
-                  // números
-                  handleChangeField(
-                    account.accountId,
-                    "creditLine",
-                    newValue.creditLine === undefined ? "" : String(newValue.creditLine),
-                  )
-                  handleChangeField(
-                    account.accountId,
-                    "billingDays",
-                    newValue.billingDays === undefined ? "" : String(newValue.billingDays),
-                  )
-                  handleChangeField(
-                    account.accountId,
-                    "creditDays",
-                    newValue.creditDays === undefined ? "" : String(newValue.creditDays),
-                  )
-                  handleChangeField(
-                    account.accountId,
-                    "installments",
-                    newValue.installments === undefined
-                      ? ""
-                      : String(newValue.installments),
-                  )
-
-                  // fechas
-                  handleChangeField(
-                    account.accountId,
-                    "startDate",
-                    newValue.startDate ?? "",
-                  )
-                  handleChangeField(account.accountId, "endDate", newValue.endDate ?? "")
-                }}
-                showBalance
-                balanceReadOnly
-                disabled={isUpdating}
-              />
-
-              <div className="mt-4 flex flex-wrap justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => handleOpenAddPlate(account.accountId)}
-                >
-                  Gestionar tarjetas
-                </Button>
-
-                <Button
-                  type="button"
-                  onClick={() => handleSaveAccount(account)}
+              <div className="space-y-4">
+                <CreditAccountForm
+                  value={{
+                    creditLine:
+                      getFieldValue(account, account.accountId, "creditLine") === ""
+                        ? undefined
+                        : Number(getFieldValue(account, account.accountId, "creditLine")),
+                    balance: getFieldValue(account, account.accountId, "balance") === ""
+                      ? undefined
+                      : Number(getFieldValue(account, account.accountId, "balance")),
+                    billingDays:
+                      getFieldValue(account, account.accountId, "billingDays") === ""
+                        ? undefined
+                        : Number(getFieldValue(account, account.accountId, "billingDays")),
+                    creditDays:
+                      getFieldValue(account, account.accountId, "creditDays") === ""
+                        ? undefined
+                        : Number(getFieldValue(account, account.accountId, "creditDays")),
+                    installments:
+                      getFieldValue(account, account.accountId, "installments") === ""
+                        ? undefined
+                        : Number(getFieldValue(account, account.accountId, "installments")),
+                    startDate: getFieldValue(account, account.accountId, "startDate"),
+                    endDate: getFieldValue(account, account.accountId, "endDate"),
+                  }}
+                  onChange={(newValue) => {
+                    handleChangeField(
+                      account.accountId,
+                      "balance",
+                      newValue.balance === undefined ? "" : String(newValue.balance),
+                    )
+                    handleChangeField(
+                      account.accountId,
+                      "creditLine",
+                      newValue.creditLine === undefined ? "" : String(newValue.creditLine),
+                    )
+                    handleChangeField(
+                      account.accountId,
+                      "billingDays",
+                      newValue.billingDays === undefined ? "" : String(newValue.billingDays),
+                    )
+                    handleChangeField(
+                      account.accountId,
+                      "creditDays",
+                      newValue.creditDays === undefined ? "" : String(newValue.creditDays),
+                    )
+                    handleChangeField(
+                      account.accountId,
+                      "installments",
+                      newValue.installments === undefined ? "" : String(newValue.installments),
+                    )
+                    handleChangeField(account.accountId, "startDate", newValue.startDate ?? "")
+                    handleChangeField(account.accountId, "endDate", newValue.endDate ?? "")
+                  }}
+                  showBalance
                   disabled={isUpdating}
-                >
-                  Guardar
-                </Button>
-              </div>
-            </div>
-          ) : (
 
+                />
+
+                <div className="mt-4 flex flex-wrap justify-between gap-2">
+                  <Button type="button" variant="outline" onClick={() => handleOpenAddPlate(account.accountId)}>
+                    Gestionar tarjetas
+                  </Button>
+
+                  <Button type="button" onClick={() => handleSaveAccount(account)} disabled={isUpdating}>
+                    Guardar
+                  </Button>
+                </div>
+              </div>
+            ) : (
               <div className="mt-2 space-y-4">
                 <div className="grid gap-x-10 gap-y-1 text-sm md:grid-cols-2 md:text-right">
                   <div className="text-muted-foreground">Línea crédito</div>
-                  <div className="font-semibold">
-                    {formatCurrency(account.creditLine || 0, "PEN")}
-                  </div>
+                  <div className="font-semibold">{formatCurrency(account.creditLine || 0, "PEN")}</div>
 
                   <div className="text-muted-foreground">Saldo</div>
-                  <div className="font-semibold">
-                    {formatCurrency(account.balance || 0, "PEN")}
-                  </div>
+                  <div className="font-semibold">{formatCurrency(account.balance || 0, "PEN")}</div>
 
                   {account.startDate && account.endDate && (
                     <>
@@ -402,11 +380,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                 </div>
 
                 <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleOpenAddPlate(account.accountId)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => handleOpenAddPlate(account.accountId)}>
                     Gestionar tarjetas
                   </Button>
                 </div>
@@ -418,9 +392,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     )
   }
 
-  // -----------------------------------
-  // ✅ UI “Nuevo style” para crear faltantes
-  // -----------------------------------
   const renderToCreateCard = (type: AccountTypeForClient) => {
     const styles = AccountTypeStyles[type]
     const label =
@@ -433,11 +404,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     const hasForm = type === AccountTypeForClient.CREDIT
 
     return (
-      <motion.div
-        key={type}
-        layoutId={`to-create-${type}`}
-        className="overflow-hidden"
-      >
+      <motion.div key={type} layoutId={`to-create-${type}`} className="overflow-hidden">
         <Card className="overflow-hidden bg-sidebar/60">
           {hasForm ? (
             <Accordion type="single" collapsible>
@@ -446,26 +413,22 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                   <AccordionTrigger className="flex-1 py-0 hover:no-underline">
                     <div className="flex items-center gap-3">
                       <div className={cn("h-3 w-3 rounded", styles.color)} />
-                      <span className="font-semibold text-foreground">
+                      <span className="text-base font-semibold leading-none text-foreground">
                         Cuenta {label}
                       </span>
                     </div>
                   </AccordionTrigger>
 
-                  <TooltipButton
-                    icon={Trash2}
-                    tooltip="Quitar"
-                    onClick={() => removeToCreate(type)}
-                  />
+                  <TooltipButton icon={Trash2} tooltip="Quitar" onClick={() => removeToCreate(type)} />
                 </div>
 
                 <AccordionContent>
-                  <div className="space-y-6 border-t border-border p-6">
-                    {/* ✅ REUSO TOTAL del UI de crédito */}
+                  <div className="space-y-3 border-t border-border p-6">
                     <CreditAccountForm
                       value={newCreditDraft}
                       onChange={setNewCreditDraft}
                       showBalance={false}
+                      disabled={isUpdating}
                     />
                   </div>
                 </AccordionContent>
@@ -475,14 +438,12 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
             <div className="flex items-center justify-between bg-transparent p-4">
               <div className="flex items-center gap-3">
                 <div className={cn("h-3 w-3 rounded", styles.color)} />
-                <span className="font-semibold text-foreground">Cuenta {label}</span>
+                <span className="text-base font-semibold leading-none text-foreground">
+                  Cuenta {label}
+                </span>
               </div>
 
-              <TooltipButton
-                icon={Trash2}
-                tooltip="Quitar"
-                onClick={() => removeToCreate(type)}
-              />
+              <TooltipButton icon={Trash2} tooltip="Quitar" onClick={() => removeToCreate(type)} />
             </div>
           )}
         </Card>
@@ -490,33 +451,22 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     )
   }
 
-  const anySelected = toCreate.length > 0
-
   return (
     <LayoutGroup>
       <div className="flex flex-col gap-4">
         <h2 className="text-xl font-semibold text-foreground">Gestión de cuenta</h2>
 
-        {/* ✅ HEADER: igual estilo que “Nuevo → Cuentas” */}
         <div className="flex flex-col gap-4">
           <section className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-semibold text-foreground">Agregar cuentas</p>
-              <p className="text-xs text-muted-foreground">
-                Si al cliente le falta una cuenta, agrégala aquí.
-              </p>
             </div>
 
-            <Button
-              type="button"
-              onClick={handleSaveNewAccounts}
-              disabled={!anySelected || isCreating || isLoadingTypes}
-            >
+            <Button type="button" onClick={handleSaveNewAccounts} disabled={!canSaveNewAccounts}>
               Guardar cuentas
             </Button>
           </section>
 
-          {/* Botones disponibles (como Nuevo): solo muestra los que faltan */}
           <section className="flex flex-wrap gap-3">
             <AnimatePresence>
               {availableButtons.map((b) => (
@@ -526,7 +476,7 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
                   type="button"
                   onClick={() => addToCreate(b.id)}
                   className={cn(
-                    "inline-flex h-9 items-center justify-center gap-2 rounded-sm border px-4 py-2 font-semibold text-sm text-white shadow-xs transition-colors md:text-base",
+                    "inline-flex h-9 items-center justify-center gap-2 rounded-sm border px-4 py-2 text-sm font-semibold text-white shadow-xs transition-colors md:text-base",
                     b.styles.color,
                     b.styles.hoverColor,
                   )}
@@ -539,27 +489,13 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
             </AnimatePresence>
           </section>
 
-          {/* Cards seleccionadas (como Nuevo) */}
           <section className="flex flex-col gap-4">
             <AnimatePresence>{toCreate.map((t) => renderToCreateCard(t))}</AnimatePresence>
-
-            {!isLoadingTypes && availableButtons.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                Este cliente ya tiene todas las cuentas disponibles.
-              </p>
-            )}
           </section>
         </div>
 
-        {/* Cuentas existentes */}
         <section className="mt-2">
           {isLoading && <p className="text-sm text-muted-foreground">Cargando cuentas...</p>}
-
-          {!isLoading && (!accounts || accounts.length === 0) && (
-            <p className="text-sm text-muted-foreground">
-              Este cliente aún no tiene cuentas creadas.
-            </p>
-          )}
 
           {!isLoading && accounts && (
             <Accordion
@@ -577,4 +513,3 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
     </LayoutGroup>
   )
 }
-

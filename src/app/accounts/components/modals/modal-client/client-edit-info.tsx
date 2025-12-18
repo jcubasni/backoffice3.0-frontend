@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { useFormContext, useWatch } from "react-hook-form"
 
 import { Input } from "@/components/ui/input"
@@ -16,7 +16,16 @@ import {
   useGetDepartments,
   useGetProvinces,
   useGetDistricts,
+  useGetDistrictById,
 } from "@/app/accounts/hooks/useUbigeoService"
+
+/**
+ * 🧩 Helper: obtiene la dirección principal (addresses[0] o isPrimary)
+ */
+const getPrimaryAddress = (client: ClientResponse) => {
+  if (!client.addresses || client.addresses.length === 0) return undefined
+  return client.addresses.find((a) => a.isPrimary) ?? client.addresses[0]
+}
 
 type ClientEditInfoProps = {
   client: ClientResponse
@@ -24,29 +33,111 @@ type ClientEditInfoProps = {
 
 export function ClientEditInfo({ client }: ClientEditInfoProps) {
   const form = useFormContext<EditClientSchema>()
-
   const isRuc = client.documentType?.name?.toUpperCase() === "RUC"
 
-  const [departmentId, provinceId] = useWatch({
+  // ✅ districtId inicial: primero del payload del modal, si no, desde addresses[].district.id
+  const primary = useMemo(() => getPrimaryAddress(client), [client])
+
+  const initialDistrictId =
+    (client as any)?.districtId ??
+    (primary as any)?.district?.id ??
+    ""
+
+  // ✅ Watch de cascada
+  const [departmentId, provinceId, districtId] = useWatch({
     control: form.control,
-    name: ["departmentId", "provinceId"],
+    name: ["departmentId", "provinceId", "districtId"],
   })
 
-  // ✅ queries Ubigeo
+  // ✅ Query para resolver dep/prov desde districtId
+  const districtByIdQuery = useGetDistrictById(
+    (districtId as string) || initialDistrictId,
+  )
+
+  // ✅ Queries Ubigeo
   const departmentsQuery = useGetDepartments()
   const provincesQuery = useGetProvinces(departmentId)
   const districtsQuery = useGetDistricts(departmentId, provinceId)
 
-  // ✅ reset cascada, pero SOLO cuando el usuario ya tocó el form
+  /**
+   * 🧠 Hydration guard:
+   * Cuando precargamos dep/prov/district desde el endpoint,
+   * NO queremos que la cascada los limpie.
+   */
+  const hydratingRef = useRef(false)
+  const didInitRef = useRef(false)
+
+  // ✅ 1) Precargar departmentId + provinceId + districtId desde GET /ubigeo/districts/:id
   useEffect(() => {
-    if (!form.formState.isDirty) return
-    form.setValue("provinceId", "")
-    form.setValue("districtId", "")
+    if (didInitRef.current) return
+
+    // si no hay districtId para resolver, no hacemos nada
+    if (!initialDistrictId) {
+      didInitRef.current = true
+      return
+    }
+
+    const resolved = districtByIdQuery.data
+    if (!resolved) return
+
+    const depId = resolved.department?.id ?? ""
+    const provId = resolved.province?.id ?? ""
+    const distId = resolved.id ?? ""
+
+    // Si ya están seteados, no sobreescribimos
+    const currentDep = form.getValues("departmentId") ?? ""
+    const currentProv = form.getValues("provinceId") ?? ""
+    const currentDist = form.getValues("districtId") ?? ""
+
+    const needsSet =
+      !currentDep || !currentProv || !currentDist || currentDist !== distId
+
+    if (!needsSet) {
+      didInitRef.current = true
+      return
+    }
+
+    hydratingRef.current = true
+
+    form.setValue("departmentId", depId, {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    })
+    form.setValue("provinceId", provId, {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    })
+    form.setValue("districtId", distId, {
+      shouldDirty: false,
+      shouldTouch: false,
+      shouldValidate: false,
+    })
+
+    // liberamos el guard en el siguiente tick
+    queueMicrotask(() => {
+      hydratingRef.current = false
+      didInitRef.current = true
+    })
+  }, [districtByIdQuery.data, form, initialDistrictId])
+
+  // ✅ 2) Reset cascada (solo cuando cambia por el USUARIO, no por precarga)
+  useEffect(() => {
+    if (!departmentId) return
+    if (hydratingRef.current) return
+
+    // si el usuario cambió departamento, limpiamos provincia/distrito
+    form.setValue("provinceId", "", { shouldDirty: true })
+    form.setValue("districtId", "", { shouldDirty: true })
   }, [departmentId, form])
 
   useEffect(() => {
-    if (!form.formState.isDirty) return
-    form.setValue("districtId", "")
+    if (!provinceId) return
+    if (hydratingRef.current) return
+
+    // si el usuario cambió provincia, limpiamos distrito
+    form.setValue("districtId", "", { shouldDirty: true })
   }, [provinceId, form])
 
   return (

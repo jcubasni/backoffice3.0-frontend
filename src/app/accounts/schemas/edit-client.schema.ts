@@ -10,13 +10,14 @@ export const editClientSchema = z.object({
   lastName: optionalString,
   address: optionalString,
 
-  // ✅ IDS (no nombres)
-  departmentId: optionalString, // "15"
-  provinceId: optionalString,   // "1501"
-  districtId: optionalString,   // "150142"
+  // ✅ reemplaza department/province/district por IDs
+  departmentId: optionalString,
+  provinceId: optionalString,
+  districtId: optionalString,
 
   email: optionalString.pipe(z.string().email("Email inválido").optional()),
   phone: optionalString,
 })
+
 
 export type EditClientSchema = z.infer<typeof editClientSchema>

@@ -110,8 +110,8 @@ export default function ModalAddPlate() {
                 {/* 🔹 PLACA: viene del módulo Vehículos */}
                 <ComboBoxForm
                   name={`plates.${index}.plate` as const}
-                  label="Placa"
-                  classContainer="col-span-2"
+                  label="Placa:"
+                  classContainer="col-span-1"
                   className="w-full!"
                   searchable
                   options={dataToCombo(

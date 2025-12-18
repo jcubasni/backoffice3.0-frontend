@@ -230,11 +230,11 @@ export function useCreateAccountOnly() {
       }
     },
 
-    onError() {
-      toast.error("No se pudieron crear las cuentas")
-    },
+    // ✅ NO toast aquí (se maneja en el componente)
+    onError() {},
   })
 }
+
 
 /* -------------------------------------------
  * 🟢 EDITAR CUENTA (PATCH /accounts/:id)

@@ -122,7 +122,7 @@ function CardItem({ card }: { card: CardResponse }) {
           </div>
         </div>
 
-        {/* Acciones */}
+        {/* Acciones */}cliente
         <div className="flex justify-end">
           <TooltipButton.Box className="mr-0">
             <TooltipButton
@@ -548,42 +548,37 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
     <div className="space-y-4">
       {/* Header + filtros */}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-foreground">
-            Tarjetas del cliente
-          </h2>
-          <p className="text-xs md:text-sm text-muted-foreground">
-            Gestiona las tarjetas vinculadas a las cuentas y vehículos del
-            cliente.
-          </p>
-        </div>
+  <div className="text-xl font-semibold text-foreground">
+    <h2 className="text-xl font-semibold text-foreground">
+      Tarjetas del cliente
+    </h2>
+  </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <ComboBox
-            label="Cuenta"
-            placeholder="Selecciona una cuenta"
-            value={selectedAccountId}
-            options={accountOptions}
-            onSelect={(value) => setSelectedAccountId(value)}
-            className="min-w-[220px]"
-          />
+  <div className="flex flex-wrap items-end gap-2">
+    <ComboBox
+      label="Cuenta"
+      placeholder="Selecciona una cuenta"
+      value={selectedAccountId}
+      options={accountOptions}
+      onSelect={(value) => setSelectedAccountId(value)}
+      className="min-w-[260px]"
+    />
 
-          <Button
-            type="button"
-            size="default"
-            onClick={() => {
-              if (!selectedAccountId) return
-              useModalStore
-                .getState()
-                .openModal(Modals.ADD_PLATE, selectedAccountId)
-            }}
-            disabled={!selectedAccountId}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Agregar tarjeta
-          </Button>
-        </div>
-      </div>
+    <Button
+      type="button"
+      size="default"
+      
+      onClick={() => {
+        if (!selectedAccountId) return
+        useModalStore.getState().openModal(Modals.ADD_PLATE, selectedAccountId)
+      }}
+      disabled={!selectedAccountId}
+    >
+      <Plus className="mr-2 h-4 w-4" />
+      Agregar tarjeta
+    </Button>
+  </div>
+</div>
 
       {/* Lista de tarjetas */}
       {isLoading ? (

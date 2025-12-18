@@ -1,6 +1,6 @@
-// src/shared/components/ui/combo-box.tsx
+// combo-box.tsx
 import { Check, ChevronDown } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { ClipLoader } from "react-spinners"
 import { Button, type ButtonProps } from "@/components/ui/button"
 import {
@@ -12,11 +12,7 @@ import {
   CommandList,
 } from "@/components/ui/command"
 import { Label } from "@/components/ui/label"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import type { ComboBoxOption } from "@/shared/types/combo-box.type"
@@ -28,12 +24,10 @@ export interface ComboBoxProps extends Omit<ButtonProps, "onSelect"> {
   classLabel?: string
   placeholder?: string
   options?: ComboBoxOption[]
-  defaultValue?: string | number
-  value?: string | number
+  value?: string | number              // ✅ controlled
   onSelect?: (option: string) => boolean | void
   isLoading?: boolean
   searchable?: boolean
-  /** 🔍 Placeholder del input de búsqueda (opcional) */
   searchPlaceholder?: string
 }
 
@@ -44,46 +38,30 @@ export function ComboBox({
   placeholder,
   options = [],
   onSelect,
-  defaultValue,
-  value: controlledValue,
+  value,
   isLoading = false,
   searchable = false,
   searchPlaceholder = "Buscar...",
   ...props
 }: ComboBoxProps) {
   const [open, setOpen] = useState(false)
-  const [value, setValue] = useState<string>(defaultValue?.toString() ?? "")
+
+  const stringValue = value?.toString() ?? ""
 
   const selectedOption = useMemo(
-    () => options.find((option) => option.value === value),
-    [options, value],
+    () => options.find((option) => option.value.toString() === stringValue),
+    [options, stringValue],
   )
 
   const handleSelect = (currentValue: string) => {
     const result = onSelect?.(currentValue)
-    if (result !== false) {
-      setValue(currentValue)
-    }
-    setOpen(false)
+    if (result !== false) setOpen(false)
   }
-
-  useEffect(() => {
-    setValue(defaultValue?.toString() ?? "")
-  }, [defaultValue])
-
-  useEffect(() => {
-    if (controlledValue !== undefined) {
-      setValue(controlledValue.toString())
-    }
-  }, [controlledValue])
 
   return (
     <div className={cn("flex flex-col gap-2", classContainer)}>
       {label && (
-        <Label
-          className={cn("w-fit leading-4", classLabel)}
-          htmlFor={props.name}
-        >
+        <Label className={cn("w-fit leading-4", classLabel)} htmlFor={props.name}>
           {label}
         </Label>
       )}
@@ -97,13 +75,14 @@ export function ComboBox({
             {...props}
             className={cn(
               "group relative w-full max-w-full justify-start overflow-hidden rounded px-2 font-normal text-sm",
-              !value && "text-foreground/40",
+              !stringValue && "text-foreground/40",
               props.className,
             )}
           >
             <span className="block truncate pr-10 text-left">
               {selectedOption?.label ?? placeholder ?? "Seleccionar una opcion"}
             </span>
+
             <div
               className={cn(
                 "absolute top-0 right-0 flex h-full w-8 items-center justify-center",
@@ -114,30 +93,18 @@ export function ComboBox({
                 <ClipLoader size={8} color={Colors.extra} />
               ) : (
                 <ChevronDown
-                  className={cn(
-                    "size-4 transition-transform duration-200",
-                    open && "rotate-180",
-                  )}
+                  className={cn("size-4 transition-transform duration-200", open && "rotate-180")}
                 />
               )}
             </div>
           </Button>
         </PopoverTrigger>
 
-        <PopoverContent
-          asChild
-          className={cn("popover-content-width-full rounded p-0")}
-        >
-          <Command
-            // 👇 usamos el filtro builtin solo cuando searchable = true
-            shouldFilter={searchable}
-            className={cn(options.length > 8 && "pr-1")}
-          >
+        <PopoverContent asChild className={cn("popover-content-width-full rounded p-0")}>
+          <Command shouldFilter={searchable} className={cn(options.length > 8 && "pr-1")}>
             <CommandInput
               placeholder={searchPlaceholder}
-              className={cn(
-                !searchable && "hidden h-0 overflow-hidden border-0 p-0",
-              )}
+              className={cn(!searchable && "hidden h-0 overflow-hidden border-0 p-0")}
             />
 
             <CommandList>
@@ -149,30 +116,31 @@ export function ComboBox({
               >
                 <CommandEmpty>No hay opciones</CommandEmpty>
                 <CommandGroup>
-                  {options.map((option) => (
-                    <CommandItem
-                      key={option.value}
-                      // ❗ value = LABEL → lo que se usa para filtrar al escribir
-                      value={option.label}
-                      // cuando seleccionas, enviamos el ID real
-                      onSelect={() => handleSelect(option.value.toString())}
-                      className={cn(
-                        "rounded! dark:text-gray-300",
-                        option.value === value
-                          ? "bg-blue-100 font-bold dark:bg-background"
-                          : "transition-colors hover:bg-blue-50 hover:dark:bg-background",
-                      )}
-                    >
-                      {option.label}
-                      <Check
+                  {options.map((option) => {
+                    const optValue = option.value.toString()
+                    return (
+                      <CommandItem
+                        key={optValue}
+                        value={option.label}
+                        onSelect={() => handleSelect(optValue)}
                         className={cn(
-                          "ml-auto text-primary dark:text-white",
-                          value === option.value ? "opacity-100" : "opacity-0",
+                          "rounded! dark:text-gray-300",
+                          optValue === stringValue
+                            ? "bg-blue-100 font-bold dark:bg-background"
+                            : "transition-colors hover:bg-blue-50 hover:dark:bg-background",
                         )}
-                        size={18}
-                      />
-                    </CommandItem>
-                  ))}
+                      >
+                        {option.label}
+                        <Check
+                          className={cn(
+                            "ml-auto text-primary dark:text-white",
+                            optValue === stringValue ? "opacity-100" : "opacity-0",
+                          )}
+                          size={18}
+                        />
+                      </CommandItem>
+                    )
+                  })}
                 </CommandGroup>
               </ScrollArea>
             </CommandList>

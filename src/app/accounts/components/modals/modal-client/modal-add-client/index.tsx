@@ -108,7 +108,7 @@ export default function ModalAddClient() {
           ...tab,
           component: (
             <BlockedTabCard
-              title="Tarjetas del cliente"
+              title="Tarjetas   del cliente"
               message={
                 <>
                   Para gestionar tarjetas primero debes{" "}
@@ -196,22 +196,9 @@ export default function ModalAddClient() {
               )}
             </div>
 
-            {/* Botón guardar (desktop) */}
-            <div className="hidden lg:block">
-              <Button
-                type="submit"
-                disabled={addClient.isPending || isSaved}
-                variant={isSaved ? "outline" : "default"}
-              >
-                <Save className="size-4" />
-                {isSaved
-                  ? "Cliente guardado"
-                  : addClient.isPending
-                    ? "Guardando..."
-                    : "Guardar cliente"}
-              </Button>
-            </div>
+            
           </div>
+          
 
           <Tabs
             value={activeTab}
@@ -259,6 +246,7 @@ export default function ModalAddClient() {
               })}
             </TabsList>
 
+
             {tabsForAdd.map((tab) => (
               <TabsContent
                 key={tab.id}
@@ -275,6 +263,26 @@ export default function ModalAddClient() {
               </TabsContent>
             ))}
           </Tabs>
+          {/* Botón guardar (desktop) */}
+          {/* Botón guardar (desktop) */}
+{activeTab === "misDatos" && (
+  <div className="mt-6 hidden lg:flex justify-end mr-3">
+    <Button
+      type="submit"
+      disabled={addClient.isPending || isSaved}
+      variant={isSaved ? "outline" : "default"}
+    >
+      <Save className="mr-2 size-4" />
+      {isSaved
+        ? "Cliente guardado"
+        : addClient.isPending
+          ? "Guardando..."
+          : "Guardar cliente"}
+    </Button>
+  </div>
+)}
+
+
         </main>
 
         {/* Botón guardar (mobile) */}
@@ -292,9 +300,11 @@ export default function ModalAddClient() {
                 ? "Guardando..."
                 : "Guardar cliente"}
           </Button>
+          
         </div>
       </FormWrapper>
     </Modal>
   )
+  
 }
 

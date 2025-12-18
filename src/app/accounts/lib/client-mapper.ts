@@ -1,28 +1,23 @@
+// client-mapper.ts
 import type { CreateClientSchema } from "@/app/accounts/schemas/create-client.schema"
 import type { ClientDTO } from "@/app/accounts/types/client.type"
 
-/**
- * Transforma los datos del formulario CreateClientSchema a ClientDTO
- * para enviarlos al backend
- */
 export const mapCreateClientSchemaToClientDTO = (
   data: CreateClientSchema,
 ): ClientDTO => {
   return {
-    // Datos del cliente
     documentTypeId: Number(data.documentType),
     documentNumber: data.documentNumber,
     firstName: data.firstName,
     lastName: data.lastName,
     address: data.address,
 
-    // ✅ Ubigeo: enviar solo lo que normalmente pide el backend
+    // ✅ LO ÚNICO que necesita el backend para ubigeo (según tu ClientDTO)
     districtId: data.districtId,
 
     email: data.email,
     phone: data.phone,
 
-    // Cuentas - transformar de AccountSchema[] a ClientAccountConfigDto[]
     accounts:
       data.accounts?.map((account) => ({
         accountTypeId: account.accountTypeId,
@@ -37,9 +32,8 @@ export const mapCreateClientSchemaToClientDTO = (
               endDate: account.accountData.endDate.toISOString(),
             }
           : undefined,
-      })) || [],
+      })) ?? [],
 
-    // Vehiculos - transformar de VehicleSchema[] a VehicleCardDto[]
     vehicles:
       data.vehicles?.map((vehicle) => ({
         licensePlate: vehicle.licensePlate,
@@ -54,6 +48,6 @@ export const mapCreateClientSchemaToClientDTO = (
           balance: accountType.balance ?? 0,
           productIds: accountType.productIds,
         })),
-      })) || [],
+      })) ?? [],
   }
 }

@@ -80,9 +80,9 @@ export function Sidebar() {
       </div>
 
       {/* Save Button */}
-      <div className="mt-auto">
+      {/* <div className="mt-auto">
         <Button className="w-full">Guardar Cambios</Button>
-      </div>
+      </div> */}
     </aside>
   )
 }
