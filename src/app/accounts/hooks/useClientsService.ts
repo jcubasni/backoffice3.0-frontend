@@ -324,13 +324,17 @@ export function useEditClient() {
           if (client.addresses && client.addresses.length > 0) {
             const primary = client.addresses.find((a) => a.isPrimary) ?? client.addresses[0]
 
-            const updatedPrimary = {
-  ...primary,
-  addressLine1: data.address ?? primary.addressLine1,
-  district: data.districtId
-    ? { ...(primary.district ?? {}), id: data.districtId, name: (primary.district as any)?.name ?? "" }
-    : primary.district,
-}
+           const updatedPrimary = {
+            ...primary,
+            addressLine1: data.address?.addressLine1 ?? primary.addressLine1,
+            district: data.address?.districtId
+              ? {
+                  ...(primary.district ?? {}),
+                  id: data.address.districtId,
+                  name: (primary.district as any)?.name ?? "",
+                }
+              : primary.district,
+          }
 
 
             return {

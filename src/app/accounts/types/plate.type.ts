@@ -57,10 +57,16 @@ export type EditPlateDTO = {
   }
 }
 
-/** DTO para agregar saldo incremental (POST /accounts/cards/:id/assign-balance) */
+/**
+ * DTO para asignar saldo a una tarjeta descontando saldo de la cuenta
+ * POST /accounts/cards/:accountId/assign-balance
+ *
+ * Nota: en tu backend, `cardId` es el `accountCardId`
+ */
 export type AssignPlateBalanceDTO = {
-  accountCardId: string
+  accountId: string
   body: {
+    cardId: string // <- aquí va accountCardId
     amount: number
     note?: string
   }

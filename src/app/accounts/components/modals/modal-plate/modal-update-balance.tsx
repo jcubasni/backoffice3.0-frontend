@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo } from "react"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { useForm, useWatch } from "react-hook-form"
 import { z } from "zod"
 
 import { Modals } from "@/app/accounts/types/modals-name"
@@ -13,22 +13,25 @@ import Modal from "@/shared/components/ui/modal"
 import { useModalStore } from "@/shared/store/modal.store"
 import { formatCurrency } from "@/shared/lib/number"
 
-
-// ✅ CAMBIA este hook por el tuyo real (assign-balance)
 import { useAssignPlateBalance } from "@/app/accounts/hooks/usePlatesServicec"
 
-
 type UpdateBalanceModalProp = {
+  accountId: string
   accountCardId: string
-  currentBalance: number
+  currentCardBalance?: number
+  availableAccountBalance?: number
 }
 
-const addBalanceSchema = z.object({
+// ✅ NOTE OBLIGATORIO (según tu backend)
+const schema = z.object({
   amount: z.coerce.number().min(0.01, "El monto debe ser mayor a 0"),
-  note: z.string().optional(),
+  note: z
+    .string()
+    .trim()
+    .min(1, "La nota es obligatoria (ej: Recarga)") // ✅ obligatorio
 })
 
-type AddBalanceData = z.infer<typeof addBalanceSchema>
+type FormData = z.infer<typeof schema>
 
 export default function ModalUpdateBalance() {
   const modalData = useModalStore((state) =>
@@ -36,70 +39,102 @@ export default function ModalUpdateBalance() {
   )?.prop as UpdateBalanceModalProp | undefined
 
   const { closeModal } = useModalStore()
-
-  const accountCardId = modalData?.accountCardId ?? ""
-  const currentBalance = modalData?.currentBalance ?? 0
-
   const assignBalance = useAssignPlateBalance()
 
-  const form = useForm<AddBalanceData>({
-    resolver: zodResolver(addBalanceSchema),
+  const accountId = modalData?.accountId ?? ""
+  const accountCardId = modalData?.accountCardId ?? ""
+  const currentCardBalance = modalData?.currentCardBalance ?? 0
+  const availableAccountBalance = modalData?.availableAccountBalance
+
+  const form = useForm<FormData>({
+    resolver: zodResolver(schema),
     defaultValues: { amount: 0, note: "" },
+    mode: "onChange",
   })
 
-  // ✅ Cada vez que se abre el modal, resetea limpio
+  // ✅ useWatch para que el “Saldo final” se actualice siempre
+  const amount = useWatch({ control: form.control, name: "amount" }) ?? 0
+
   useEffect(() => {
     if (!modalData) return
     form.reset({ amount: 0, note: "" })
   }, [modalData, form])
 
-  const amount = form.watch("amount") ?? 0
-
-  const nextBalance = useMemo(() => {
+  const nextCardBalance = useMemo(() => {
     const a = Number.isFinite(amount) ? Number(amount) : 0
-    return currentBalance + a
-  }, [currentBalance, amount])
+    return currentCardBalance + a
+  }, [currentCardBalance, amount])
 
- const onSubmit = (data: AddBalanceData) => {
-  if (!accountCardId) return
+  const willExceed =
+    typeof availableAccountBalance === "number" && amount > availableAccountBalance
 
-  assignBalance.mutate(
-    {
-      accountCardId,
-      body: {
-        amount: data.amount,
-        note: data.note?.trim() || undefined,
+  const onSubmit = (data: FormData) => {
+    if (!accountId || !accountCardId) return
+
+    if (typeof availableAccountBalance === "number" && data.amount > availableAccountBalance) {
+      form.setError("amount", {
+        type: "manual",
+        message: `Saldo insuficiente. Disponible ${formatCurrency(
+          availableAccountBalance,
+          "PEN",
+        )}`,
+      })
+      return
+    }
+
+    assignBalance.mutate(
+      {
+        accountId,
+        body: {
+          cardId: accountCardId,
+          amount: data.amount,
+          note: data.note.trim(), // ✅ siempre no-vacío
+        },
       },
-    },
-    {
-      onSuccess: () => {
-        closeModal(Modals.UPDATE_BALANCE)
-        form.reset({ amount: 0, note: "" })
+      {
+        onSuccess: () => {
+          closeModal(Modals.UPDATE_BALANCE)
+          form.reset({ amount: 0, note: "" })
+        },
       },
-    },
-  )
-}
+    )
+  }
 
   if (!modalData) return null
 
   return (
     <Modal
       modalId={Modals.UPDATE_BALANCE}
-      title="Agregar saldo"
-      className="overflow-y-auto sm:w-[420px]"
+      title="Agregar saldo a tarjeta"
+      className="overflow-y-auto sm:w-[440px]"
       onClose={() => closeModal(Modals.UPDATE_BALANCE)}
     >
       <FormWrapper form={form} onSubmit={onSubmit} className="space-y-4">
-        <div className="space-y-1 rounded-md border border-border p-3 text-sm">
+        <div className="space-y-2 rounded-md border border-border p-3 text-sm">
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Saldo actual</span>
-            <span className="font-semibold">{formatCurrency(currentBalance, "PEN")}</span>
+            <span className="text-muted-foreground">Saldo actual (tarjeta)</span>
+            <span className="font-semibold">{formatCurrency(currentCardBalance, "PEN")}</span>
           </div>
 
+          {typeof availableAccountBalance === "number" && (
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Disponible (cuenta)</span>
+              <span className="font-semibold">
+                {formatCurrency(availableAccountBalance, "PEN")}
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Saldo final estimado</span>
-            <span className="font-semibold">{formatCurrency(nextBalance, "PEN")}</span>
+            <span className="text-muted-foreground">Saldo final (tarjeta)</span>
+            <span className="font-semibold">{formatCurrency(nextCardBalance, "PEN")}</span>
           </div>
+
+          {willExceed && (
+            <p className="text-xs text-destructive">
+              El monto excede el saldo disponible de la cuenta.
+            </p>
+          )}
         </div>
 
         <InputForm
@@ -112,10 +147,10 @@ export default function ModalUpdateBalance() {
         />
 
         <InputForm
-          label="Nota (opcional)"
+          label="Nota"
           name="note"
           type="text"
-          placeholder="Ej: recarga, ajuste, etc."
+          placeholder="Ej: Recarga"
         />
 
         <Modal.Footer className="grid-cols-2">
@@ -128,7 +163,7 @@ export default function ModalUpdateBalance() {
             Cancelar
           </Button>
 
-          <Button type="submit" disabled={assignBalance.isPending}>
+          <Button type="submit" disabled={assignBalance.isPending || willExceed}>
             {assignBalance.isPending ? "Guardando..." : "Agregar"}
           </Button>
         </Modal.Footer>

@@ -210,11 +210,20 @@ export type ClientDTO = {
 export type ClientUpdateDTO = {
   firstName?: string
   lastName?: string
-  address?: string
-  districtId?: string
   email?: string
   phone?: string
+  dateOfBirth?: string
+
+  address?: {
+    addressLine1?: string
+    street?: string
+    number?: string
+    postalCode?: string
+    districtId?: string
+    reference?: string
+  }
 }
+
 
 export type VehicleType = {
   id: number

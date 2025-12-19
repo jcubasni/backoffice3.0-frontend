@@ -6,14 +6,14 @@ import { ErrorResponse } from "@/shared/errors/error-response"
 
 import {
   addPlates,
-  assignPlateBalance, // ✅ NUEVO
+  assignPlateBalance, // ✅ ya corregido en service
   editPlate,
   getPlates,
   searchPlateByClientId,
 } from "../services/plates.service"
 
 import { Modals } from "../types/modals-name"
-import type { AddPlateDTO, EditPlateDTO } from "../types/plate.type"
+import type { AddPlateDTO, EditPlateDTO, AssignPlateBalanceDTO } from "../types/plate.type"
 
 export function useGetPlates(accountId?: string) {
   return useQuery({
@@ -73,31 +73,24 @@ export function useEditPlate() {
 }
 
 /* -------------------------------------------
- * ✅ AGREGAR SALDO INCREMENTAL A TARJETA
- * POST /accounts/cards/:accountCardId/assign-balance
- * body: { amount, note? }
+ * ✅ ASIGNAR SALDO A TARJETA (DESCUENTA SALDO DE CUENTA)
+ * POST /accounts/cards/:accountId/assign-balance
+ * body: { cardId: accountCardId, amount, note? }
  * ---------------------------------------- */
 export function useAssignPlateBalance() {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationKey: ["assign-plate-balance"],
-    mutationFn: ({
-      accountCardId,
-      body,
-    }: {
-      accountCardId: string
-      body: { amount: number; note?: string }
-    }) => assignPlateBalance(accountCardId, body),
+    mutationFn: (data: AssignPlateBalanceDTO) => assignPlateBalance(data),
 
     onSuccess: () => {
       toast.success("Saldo agregado correctamente")
       useModalStore.getState().closeModal(Modals.UPDATE_BALANCE)
 
-      queryClient.invalidateQueries({
-        queryKey: ["plates"],
-        exact: false,
-      })
+      // ✅ refrescar tarjetas y cuentas (porque ambos balances cambian)
+      queryClient.invalidateQueries({ queryKey: ["plates"], exact: false })
+      queryClient.invalidateQueries({ queryKey: ["accounts"], exact: false })
     },
 
     onError: (err: any) => {

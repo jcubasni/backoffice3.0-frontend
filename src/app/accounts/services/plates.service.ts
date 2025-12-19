@@ -1,6 +1,11 @@
 // plates.service.ts
 import { fetchData } from "@/shared/lib/fetch-data"
-import type { AddPlateDTO, CardResponse, EditPlateDTO } from "../types/plate.type"
+import type {
+  AddPlateDTO,
+  CardResponse,
+  EditPlateDTO,
+  AssignPlateBalanceDTO,
+} from "../types/plate.type"
 
 // 📌 Listar tarjetas por cuenta
 export const getPlates = async (accountId: string): Promise<CardResponse[]> => {
@@ -12,14 +17,11 @@ export const getPlates = async (accountId: string): Promise<CardResponse[]> => {
 
 // 📌 Crear tarjetas para una cuenta
 //    accountId va en la URL, y el body solo lleva { cards }
-export const addPlates = async (
-  accountId: string,
-  { cards }: AddPlateDTO,
-) => {
+export const addPlates = async (accountId: string, { cards }: AddPlateDTO) => {
   const response = await fetchData({
     url: `/accounts/cards/${accountId}`, // 👈 accountId SOLO en la ruta
     method: "POST",
-    body: { cards },                      // 👈 body igual que en Postman
+    body: { cards }, // 👈 body igual que en Postman
   })
 
   return response
@@ -47,15 +49,19 @@ export const searchPlateByClientId = async (
   })
   return response
 }
-export async function assignPlateBalance(
-  accountCardId: string,
-  body: { amount: number; note?: string },
-) {
-  // ✅ EJEMPLO:
-  // POST /accounts/cards/:accountCardId/assign-balance
+
+/**
+ * ✅ Asignar saldo a una tarjeta descontando saldo de la cuenta
+ * POST /accounts/cards/:accountId/assign-balance
+ *
+ * Nota: en tu backend, body.cardId = accountCardId
+ */
+export async function assignPlateBalance(data: AssignPlateBalanceDTO) {
+  const { accountId, body } = data
+
   return fetchData({
-    url: `/accounts/cards/${accountCardId}/assign-balance`,
+    url: `/accounts/cards/${accountId}/assign-balance`,
     method: "POST",
-    body,
+    body, // { cardId (accountCardId), amount, note? }
   })
 }

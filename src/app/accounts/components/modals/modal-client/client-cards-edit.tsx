@@ -38,8 +38,7 @@ import { useModalStore } from "@/shared/store/modal.store"
 /* ───────────────────────────────────── */
 
 function CardStatusBadge({ status }: { status: CardStatus }) {
-  const base =
-    "rounded-full px-2 py-0.5 text-xs font-semibold"
+  const base = "rounded-full px-2 py-0.5 text-xs font-semibold"
 
   if (status === CardStatus.ACTIVE) {
     return <span className={cn(base, "bg-emerald-100 text-emerald-800")}>Activa</span>
@@ -51,23 +50,29 @@ function CardStatusBadge({ status }: { status: CardStatus }) {
 function CardItem({
   card,
   clientId,
+  accountId,
+  availableAccountBalance,
 }: {
   card: CardResponse
   clientId: string
+  accountId: string
+  availableAccountBalance?: number
 }) {
   const { openModal } = useModalStore()
 
   const plate = card.vehicle?.plate ?? "Sin placa"
 
   const mainProductName =
-    card.products && card.products.length > 0
-      ? card.products[0].name
-      : "Sin producto"
+    card.products && card.products.length > 0 ? card.products[0].name : "Sin producto"
 
   const handleAssignBalance = () => {
+    if (!accountId) return
+
     openModal(Modals.UPDATE_BALANCE, {
-      accountCardId: card.accountCardId,
-      currentBalance: card.balance,
+      accountId, // ✅ CUENTA (va en URL)
+      accountCardId: card.accountCardId, // ✅ TARJETA VINCULADA
+      currentCardBalance: card.balance, // ✅ nombre correcto para el modal
+      availableAccountBalance, // ✅ para validar “saldo insuficiente”
     })
   }
 
@@ -92,9 +97,7 @@ function CardItem({
                 <Car className="h-4 w-4 text-primary" />
                 <span className="text-sm font-semibold">{plate}</span>
               </div>
-              <p className="text-xs text-muted-foreground">
-                {card.client.fullName}
-              </p>
+              <p className="text-xs text-muted-foreground">{card.client.fullName}</p>
             </div>
 
             <CardStatusBadge status={card.status} />
@@ -104,15 +107,11 @@ function CardItem({
           <div className="space-y-2 text-sm">
             <div className="flex items-center gap-2 text-foreground">
               <CreditCard className="h-4 w-4" />
-              <span className="font-mono text-xs md:text-sm">
-                {card.cardNumber}
-              </span>
+              <span className="font-mono text-xs md:text-sm">{card.cardNumber}</span>
             </div>
 
             <div className="flex items-center gap-2 text-foreground">
-              <span className="text-xs font-medium text-muted-foreground">
-                Producto:
-              </span>
+              <span className="text-xs font-medium text-muted-foreground">Producto:</span>
               <span className="text-xs md:text-sm">{mainProductName}</span>
             </div>
 
@@ -137,8 +136,9 @@ function CardItem({
 
             <TooltipButton
               onClick={handleAssignBalance}
+              disabled={!accountId}
               className="text-green-600 hover:text-green-700"
-              tooltip="Asignar saldo"
+              tooltip={!accountId ? "Selecciona una cuenta primero" : "Asignar saldo"}
               icon={DollarSign}
             />
           </TooltipButton.Box>
@@ -173,9 +173,7 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
       <div className="space-y-4">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-foreground">
-              Tarjetas del cliente
-            </h2>
+            <h2 className="text-xl font-semibold text-foreground">Tarjetas del cliente</h2>
             <p className="text-xs md:text-sm text-muted-foreground">
               Gestiona las tarjetas vinculadas a las cuentas y vehículos del cliente.
             </p>
@@ -199,12 +197,12 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
           <div className="space-y-1 text-center text-sm text-muted-foreground">
             <p>Para gestionar tarjetas primero debes guardar el cliente.</p>
             <p className="text-xs text-muted-foreground/70">
-              1. Completa las pestañas <strong>Mis datos</strong> y{" "}
-              <strong>Cuentas</strong>. <br />
-              2. Guarda el cliente. <br />
-              3. Luego, desde la tabla de clientes, usa el botón{" "}
-              <strong>Editar</strong> y ve a la pestaña{" "}
-              <strong>Tarjetas</strong>.
+              1. Completa las pestañas <strong>Mis datos</strong> y <strong>Cuentas</strong>.
+              <br />
+              2. Guarda el cliente.
+              <br />
+              3. Luego, desde la tabla de clientes, usa el botón <strong>Editar</strong> y ve
+              a la pestaña <strong>Tarjetas</strong>.
             </p>
           </div>
         </Card>
@@ -227,6 +225,11 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
       value: acc.accountId,
     }))
   }, [accounts])
+
+  const selectedAccount = useMemo(() => {
+    if (!accounts?.length || !selectedAccountId) return undefined
+    return accounts.find((a) => a.accountId === selectedAccountId)
+  }, [accounts, selectedAccountId])
 
   const handleChangeField = (
     accountId: string,
@@ -430,9 +433,7 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
       {/* Header + filtros */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">
-            Tarjetas del cliente
-          </h2>
+          <h2 className="text-xl font-semibold text-foreground">Tarjetas del cliente</h2>
         </div>
 
         <div className="flex flex-wrap items-end gap-2">
@@ -478,13 +479,21 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {safeCards.map((card) => (
-            <CardItem key={card.accountCardId} card={card} clientId={clientId} />
+            <CardItem
+              key={card.accountCardId}
+              card={card}
+              clientId={clientId}
+              accountId={selectedAccountId}
+              availableAccountBalance={selectedAccount?.balance}
+            />
           ))}
         </div>
       )}
 
       {/* (Si usas el acordeón de cuentas, aquí iría su render) */}
-      {/* {accounts?.map(renderAccountCard)} */}
+      {/* <Accordion type="single" collapsible className="space-y-3">
+        {accounts?.map(renderAccountCard)}
+      </Accordion> */}
     </div>
   )
 }

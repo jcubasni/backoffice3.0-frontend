@@ -162,13 +162,15 @@ export default function ModalEditClients() {
 
     const v = form.getValues()
 
-    const payload = {
+const payload = {
       firstName: v.firstName,
       lastName: v.lastName,
-      address: v.address,
-      districtId: v.districtId,
       email: v.email,
       phone: v.phone,
+      address: {
+        addressLine1: v.address,
+        districtId: v.districtId,
+      },
     }
 
     mutate(
@@ -245,7 +247,7 @@ export default function ModalEditClients() {
         onSubmit={() => {}}
         className="flex min-h-[85vh] flex-1 flex-col gap-6 lg:flex-row"
       >
-        <SidebarEditClient onSubmit={handleSaveMisDatos} disabled={isPending} />
+        <SidebarEditClient />
 
 
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">

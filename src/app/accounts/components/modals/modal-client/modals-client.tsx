@@ -22,21 +22,24 @@ const modals = [
     modalId: Modals.ADD_VEHICLE,
     component: () => import("./modal-add-vehicle"),
   },
+
+  // ✅ ESTE ES EL MODAL REAL PARA TARJETAS (plates)
   {
     modalId: Modals.UPDATE_BALANCE,
-    component: () => import("./modal-assign-balance"),
+    component: () => import("../modal-plate/modal-update-balance"),
   },
 
-  // 👇 NUEVO MODAL PDF CLIENTES
+  // 👇 MODAL PDF CLIENTES
   {
     modalId: "modal-preview-clients-pdf",
     component: () => import("./modal-preview-clients-pdf"),
   },
-  {
-  modalId: Modals.ADD_ACCOUNT_BALANCE,
-  component: () => import("../modal-accounts/modal-add-account-balance"),
-},
 
+  // ✅ ESTE ES SOLO PARA CUENTAS
+  {
+    modalId: Modals.ADD_ACCOUNT_BALANCE,
+    component: () => import("../modal-accounts/modal-add-account-balance"),
+  },
 ]
 
 export const ModalsClient = () => {
