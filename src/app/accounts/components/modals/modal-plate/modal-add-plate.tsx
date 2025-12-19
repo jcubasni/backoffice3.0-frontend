@@ -351,7 +351,7 @@ export default function ModalAddPlate() {
         </Button>
 
         <Modal.Footer>
-          <Button type="submit" variant="outline" disabled={!canSubmit}>
+          <Button type="submit"  disabled={!canSubmit}>
             {isSaving ? "Guardando..." : "Guardar"}
           </Button>
         </Modal.Footer>

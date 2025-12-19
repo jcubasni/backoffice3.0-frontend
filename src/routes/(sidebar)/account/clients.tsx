@@ -165,8 +165,6 @@ function RouteComponent() {
             Ver PDF
           </Button>
 
-
-          {/* Nuevo */}
           <Button
             size="header"
             onClick={() =>

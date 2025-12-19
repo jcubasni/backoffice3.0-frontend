@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { Car, CreditCard, DollarSign, Package, Plus } from "lucide-react"
 
 import {
@@ -34,26 +34,27 @@ import { Modals } from "@/app/accounts/types/modals-name"
 import { useModalStore } from "@/shared/store/modal.store"
 
 /* ───────────────────────────────────── */
-/*  PEQUEÑOS COMPONENTES DE APOYO       */
+/*  COMPONENTES PEQUEÑOS                */
 /* ───────────────────────────────────── */
 
 function CardStatusBadge({ status }: { status: CardStatus }) {
+  const base =
+    "rounded-full px-2 py-0.5 text-xs font-semibold"
+
   if (status === CardStatus.ACTIVE) {
-    return (
-      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800">
-        Activa
-      </span>
-    )
+    return <span className={cn(base, "bg-emerald-100 text-emerald-800")}>Activa</span>
   }
 
-  return (
-    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
-      Inactiva
-    </span>
-  )
+  return <span className={cn(base, "bg-red-100 text-red-800")}>Inactiva</span>
 }
 
-function CardItem({ card }: { card: CardResponse }) {
+function CardItem({
+  card,
+  clientId,
+}: {
+  card: CardResponse
+  clientId: string
+}) {
   const { openModal } = useModalStore()
 
   const plate = card.vehicle?.plate ?? "Sin placa"
@@ -69,14 +70,16 @@ function CardItem({ card }: { card: CardResponse }) {
       currentBalance: card.balance,
     })
   }
+
   const handleEditProducts = () => {
-  openModal(Modals.UPDATE_CARD_PRODUCTS, {
-    accountCardId: card.accountCardId,
-    cardNumber: card.cardNumber,
-    plate: card.vehicle?.plate ?? "Sin placa",
-    currentProducts: card.products ?? [],
-  })
-}
+    openModal(Modals.UPDATE_CARD_PRODUCTS, {
+      clientId, // ✅ ahora es seguro
+      accountCardId: card.accountCardId,
+      cardNumber: card.cardNumber,
+      plate,
+      currentProducts: card.products ?? [],
+    })
+  }
 
   return (
     <Card className="bg-sidebar/60 p-4">
@@ -116,13 +119,13 @@ function CardItem({ card }: { card: CardResponse }) {
             <div className="flex items-center gap-2 text-foreground">
               <DollarSign className="h-4 w-4" />
               <span className="text-xs md:text-sm">
-                Saldo: S/ {card.balance.toFixed(2)}
+                Saldo: S/ {Number(card.balance ?? 0).toFixed(2)}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Acciones */}cliente
+        {/* Acciones */}
         <div className="flex justify-end">
           <TooltipButton.Box className="mr-0">
             <TooltipButton
@@ -131,7 +134,7 @@ function CardItem({ card }: { card: CardResponse }) {
               tooltip="Editar productos"
               icon={Package}
             />
-            
+
             <TooltipButton
               onClick={handleAssignBalance}
               className="text-green-600 hover:text-green-700"
@@ -146,11 +149,10 @@ function CardItem({ card }: { card: CardResponse }) {
 }
 
 /* ───────────────────────────────────── */
-/*  COMPONENTE PRINCIPAL                */
+/*  PRINCIPAL                            */
 /* ───────────────────────────────────── */
 
 type ClientCardsEditProps = {
-  /** Si no hay clientId => modo "nuevo cliente" */
   clientId?: string
 }
 
@@ -165,22 +167,17 @@ type EditableFields = {
 }
 
 export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
-  /* ────────────────────────────── */
-  /*  MODO NUEVO CLIENTE (sin id)  */
-  /* ────────────────────────────── */
-
+  // Modo nuevo cliente
   if (!clientId) {
     return (
       <div className="space-y-4">
-        {/* Header + filtros, igual que editar pero deshabilitado */}
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 className="text-xl font-semibold text-foreground">
               Tarjetas del cliente
             </h2>
             <p className="text-xs md:text-sm text-muted-foreground">
-              Gestiona las tarjetas vinculadas a las cuentas y vehículos del
-              cliente.
+              Gestiona las tarjetas vinculadas a las cuentas y vehículos del cliente.
             </p>
           </div>
 
@@ -215,28 +212,21 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
     )
   }
 
-  /* ────────────────────────────── */
-  /*  MODO EDITAR (con clientId)   */
-  /* ────────────────────────────── */
-
+  // Modo editar
   const { data: cards, isLoading, isError } = useSearchPlateByClientId(clientId)
   const { data: accounts } = useGetAccountByClientId(clientId)
   const { mutate: updateAccount, isPending: isUpdating } = useUpdateAccount()
 
-  const [openItem, setOpenItem] = useState<string | undefined>(undefined)
-  const [editedAccounts, setEditedAccounts] = useState<
-    Record<string, EditableFields>
-  >({})
-
+  const [editedAccounts, setEditedAccounts] = useState<Record<string, EditableFields>>({})
   const [selectedAccountId, setSelectedAccountId] = useState("")
 
-  const accountOptions =
-    accounts && accounts.length > 0
-      ? accounts.map((acc) => ({
-          label: `${acc.type?.description ?? "Cuenta"} - ${acc.documentNumber}`,
-          value: acc.accountId,
-        }))
-      : []
+  const accountOptions = useMemo(() => {
+    if (!accounts?.length) return []
+    return accounts.map((acc) => ({
+      label: `${acc.type?.description ?? "Cuenta"} - ${acc.documentNumber}`,
+      value: acc.accountId,
+    }))
+  }, [accounts])
 
   const handleChangeField = (
     accountId: string,
@@ -265,35 +255,24 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
     const edited = editedAccounts[accountId]?.[field]
 
     if (field === "startDate" || field === "endDate") {
-      const original =
-        field === "startDate" ? account.startDate : account.endDate
+      const original = field === "startDate" ? account.startDate : account.endDate
       return (edited as string | undefined) ?? original ?? ""
     }
 
-    const originalNumber =
-      (account as any)[field] !== undefined ? (account as any)[field] : ""
-    return edited !== undefined ? String(edited) : String(originalNumber ?? "")
+    const originalNumber = (account as any)[field] ?? ""
+    return edited !== undefined ? String(edited) : String(originalNumber)
   }
 
   const handleSaveAccount = (account: AccountResponse) => {
     const edited = editedAccounts[account.accountId] || {}
 
     const body: AccountUpdateDTO = {
-      creditLine:
-        edited.creditLine !== undefined ? edited.creditLine : account.creditLine,
-      billingDays:
-        edited.billingDays !== undefined
-          ? edited.billingDays
-          : account.billingDays,
-      creditDays:
-        edited.creditDays !== undefined ? edited.creditDays : account.creditDays,
-      installments:
-        edited.installments !== undefined
-          ? edited.installments
-          : account.installments,
-      startDate:
-        edited.startDate !== undefined ? edited.startDate : account.startDate,
-      endDate: edited.endDate !== undefined ? edited.endDate : account.endDate,
+      creditLine: edited.creditLine ?? account.creditLine,
+      billingDays: edited.billingDays ?? account.billingDays,
+      creditDays: edited.creditDays ?? account.creditDays,
+      installments: edited.installments ?? account.installments,
+      startDate: edited.startDate ?? account.startDate,
+      endDate: edited.endDate ?? account.endDate,
     }
 
     updateAccount({
@@ -307,195 +286,103 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
     const typeId = account.type?.id as AccountTypeForClient | undefined
     const accountLabel = account.type?.description ?? "Sin tipo"
     const colorStyles = typeId ? AccountTypeStyles[typeId] : undefined
-
-    const itemValue = account.accountId
     const isCredit = typeId === AccountTypeForClient.CREDIT
 
     return (
-      <AccordionItem
-        key={account.accountId}
-        value={itemValue}
-        className="border-none"
-      >
+      <AccordionItem key={account.accountId} value={account.accountId} className="border-none">
         <Card className="overflow-hidden bg-sidebar/60">
-          {/* CABECERA */}
           <div className="flex items-center justify-between px-4 py-3">
             <AccordionTrigger className="flex-1 py-0 hover:no-underline">
               <div className="flex items-center gap-3 text-left">
-                <span
-                  className={cn(
-                    "h-3 w-3 rounded-full",
-                    colorStyles?.color,
-                  )}
-                />
-                <span className="font-semibold text-foreground">
-                  Cuenta {accountLabel}
-                </span>
+                <span className={cn("h-3 w-3 rounded-full", colorStyles?.color)} />
+                <span className="font-semibold text-foreground">Cuenta {accountLabel}</span>
               </div>
             </AccordionTrigger>
-
-            {/* Aquí podrías poner botón eliminar cuenta si el backend lo soporta */}
           </div>
 
           <AccordionContent className="border-t border-border px-4 pb-4 pt-3">
-            {/* Datos fijos */}
             <div className="mb-4 space-y-1 text-sm">
               <p className="text-muted-foreground">
-                N° documento:{" "}
-                <span className="text-foreground">
-                  {account.documentNumber}
-                </span>
+                N° documento: <span className="text-foreground">{account.documentNumber}</span>
               </p>
               <p className="text-muted-foreground">
-                Cliente:{" "}
-                <span className="text-foreground">{account.clientName}</span>
+                Cliente: <span className="text-foreground">{account.clientName}</span>
               </p>
               <p className="text-muted-foreground">
-                Dirección:{" "}
-                <span className="text-foreground">
-                  {account.address || "-"}
-                </span>
+                Dirección: <span className="text-foreground">{account.address || "-"}</span>
               </p>
             </div>
 
-            {/* FORMULARIO SOLO PARA CRÉDITO */}
             {isCredit ? (
               <div className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">
-                      Línea de crédito
-                    </label>
+                    <label className="text-sm text-muted-foreground">Línea de crédito</label>
                     <Input
                       type="number"
-                      value={getFieldValue(
-                        account,
-                        account.accountId,
-                        "creditLine",
-                      )}
+                      value={getFieldValue(account, account.accountId, "creditLine")}
                       onChange={(e) =>
-                        handleChangeField(
-                          account.accountId,
-                          "creditLine",
-                          e.target.value,
-                        )
+                        handleChangeField(account.accountId, "creditLine", e.target.value)
                       }
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">
-                      Saldo
-                    </label>
-                    <Input
-                      type="number"
-                      value={account.balance ?? 0}
-                      disabled
-                      readOnly
-                    />
+                    <label className="text-sm text-muted-foreground">Saldo</label>
+                    <Input type="number" value={account.balance ?? 0} disabled readOnly />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">
-                      Fecha de inicio
-                    </label>
+                    <label className="text-sm text-muted-foreground">Fecha de inicio</label>
                     <Input
                       type="date"
-                      value={getFieldValue(
-                        account,
-                        account.accountId,
-                        "startDate",
-                      )}
+                      value={getFieldValue(account, account.accountId, "startDate")}
                       onChange={(e) =>
-                        handleChangeField(
-                          account.accountId,
-                          "startDate",
-                          e.target.value,
-                        )
+                        handleChangeField(account.accountId, "startDate", e.target.value)
                       }
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">
-                      Fecha de fin
-                    </label>
+                    <label className="text-sm text-muted-foreground">Fecha de fin</label>
                     <Input
                       type="date"
-                      value={getFieldValue(
-                        account,
-                        account.accountId,
-                        "endDate",
-                      )}
+                      value={getFieldValue(account, account.accountId, "endDate")}
                       onChange={(e) =>
-                        handleChangeField(
-                          account.accountId,
-                          "endDate",
-                          e.target.value,
-                        )
+                        handleChangeField(account.accountId, "endDate", e.target.value)
                       }
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">
-                      Días de facturación
-                    </label>
+                    <label className="text-sm text-muted-foreground">Días de facturación</label>
                     <Input
                       type="number"
-                      value={getFieldValue(
-                        account,
-                        account.accountId,
-                        "billingDays",
-                      )}
+                      value={getFieldValue(account, account.accountId, "billingDays")}
                       onChange={(e) =>
-                        handleChangeField(
-                          account.accountId,
-                          "billingDays",
-                          e.target.value,
-                        )
+                        handleChangeField(account.accountId, "billingDays", e.target.value)
                       }
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">
-                      Días de crédito
-                    </label>
+                    <label className="text-sm text-muted-foreground">Días de crédito</label>
                     <Input
                       type="number"
-                      value={getFieldValue(
-                        account,
-                        account.accountId,
-                        "creditDays",
-                      )}
+                      value={getFieldValue(account, account.accountId, "creditDays")}
                       onChange={(e) =>
-                        handleChangeField(
-                          account.accountId,
-                          "creditDays",
-                          e.target.value,
-                        )
+                        handleChangeField(account.accountId, "creditDays", e.target.value)
                       }
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-sm text-muted-foreground">
-                      Cuotas
-                    </label>
+                    <label className="text-sm text-muted-foreground">Cuotas</label>
                     <Input
                       type="number"
-                      value={getFieldValue(
-                        account,
-                        account.accountId,
-                        "installments",
-                      )}
+                      value={getFieldValue(account, account.accountId, "installments")}
                       onChange={(e) =>
-                        handleChangeField(
-                          account.accountId,
-                          "installments",
-                          e.target.value,
-                        )
+                        handleChangeField(account.accountId, "installments", e.target.value)
                       }
                     />
                   </div>
@@ -513,24 +400,18 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
                 </div>
               </div>
             ) : (
-              // Resumen para otros tipos
               <div className="mt-2 grid gap-x-10 gap-y-1 text-sm md:grid-cols-2 md:text-right">
                 <div className="text-muted-foreground">Línea crédito</div>
-                <div className="font-semibold">
-                  {formatCurrency(account.creditLine || 0, "PEN")}
-                </div>
+                <div className="font-semibold">{formatCurrency(account.creditLine || 0, "PEN")}</div>
 
                 <div className="text-muted-foreground">Saldo</div>
-                <div className="font-semibold">
-                  {formatCurrency(account.balance || 0, "PEN")}
-                </div>
+                <div className="font-semibold">{formatCurrency(account.balance || 0, "PEN")}</div>
 
                 {account.startDate && account.endDate && (
                   <>
                     <div className="text-muted-foreground">Vigencia</div>
                     <div className="font-semibold">
-                      {formatDate(account.startDate)} -{" "}
-                      {formatDate(account.endDate)}
+                      {formatDate(account.startDate)} - {formatDate(account.endDate)}
                     </div>
                   </>
                 )}
@@ -548,39 +429,38 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
     <div className="space-y-4">
       {/* Header + filtros */}
       <div className="flex flex-wrap items-end justify-between gap-3">
-  <div className="text-xl font-semibold text-foreground">
-    <h2 className="text-xl font-semibold text-foreground">
-      Tarjetas del cliente
-    </h2>
-  </div>
+        <div>
+          <h2 className="text-xl font-semibold text-foreground">
+            Tarjetas del cliente
+          </h2>
+        </div>
 
-  <div className="flex flex-wrap items-end gap-2">
-    <ComboBox
-      label="Cuenta"
-      placeholder="Selecciona una cuenta"
-      value={selectedAccountId}
-      options={accountOptions}
-      onSelect={(value) => setSelectedAccountId(value)}
-      className="min-w-[260px]"
-    />
+        <div className="flex flex-wrap items-end gap-2">
+          <ComboBox
+            label="Cuenta"
+            placeholder="Selecciona una cuenta"
+            value={selectedAccountId}
+            options={accountOptions}
+            onSelect={setSelectedAccountId}
+            className="min-w-[260px]"
+          />
 
-    <Button
-      type="button"
-      size="default"
-      
-      onClick={() => {
-        if (!selectedAccountId) return
-        useModalStore.getState().openModal(Modals.ADD_PLATE, selectedAccountId)
-      }}
-      disabled={!selectedAccountId}
-    >
-      <Plus className="mr-2 h-4 w-4" />
-      Agregar tarjeta
-    </Button>
-  </div>
-</div>
+          <Button
+            type="button"
+            size="default"
+            onClick={() => {
+              if (!selectedAccountId) return
+              useModalStore.getState().openModal(Modals.ADD_PLATE, selectedAccountId)
+            }}
+            disabled={!selectedAccountId}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Agregar tarjeta
+          </Button>
+        </div>
+      </div>
 
-      {/* Lista de tarjetas */}
+      {/* Lista */}
       {isLoading ? (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           Cargando tarjetas...
@@ -598,10 +478,13 @@ export function ClientCardsEdit({ clientId }: ClientCardsEditProps) {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
           {safeCards.map((card) => (
-            <CardItem key={card.accountCardId} card={card} />
+            <CardItem key={card.accountCardId} card={card} clientId={clientId} />
           ))}
         </div>
       )}
+
+      {/* (Si usas el acordeón de cuentas, aquí iría su render) */}
+      {/* {accounts?.map(renderAccountCard)} */}
     </div>
   )
 }

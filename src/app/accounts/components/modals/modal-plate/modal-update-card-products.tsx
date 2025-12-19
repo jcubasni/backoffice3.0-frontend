@@ -119,13 +119,26 @@ export default function ModalUpdateCardProducts() {
       })
     },
     onSuccess: async () => {
-      toast.success("Productos actualizados correctamente")
-      closeModal(Modals.UPDATE_CARD_PRODUCTS)
+  toast.success("Productos actualizados correctamente")
 
-      await queryClient.invalidateQueries({
-        queryKey: ["plates", "by-client", props?.clientId],
-      })
-    },
+  // 1) Marca stale
+  await Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["plates", "by-client", props!.clientId] }),
+    queryClient.invalidateQueries({ queryKey: ["client", props!.clientId] }),
+    queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", props!.clientId] }),
+  ])
+
+  // 2) Fuerza refetch YA (esto es la clave)
+  await Promise.all([
+    queryClient.refetchQueries({ queryKey: ["plates", "by-client", props!.clientId] }),
+    queryClient.refetchQueries({ queryKey: ["client", props!.clientId] }),
+    queryClient.refetchQueries({ queryKey: ["accounts", "by-client", props!.clientId] }),
+  ])
+
+  // 3) Recién cierras
+  closeModal(Modals.UPDATE_CARD_PRODUCTS)
+},
+
     onError: () => {
       toast.error("No se pudo actualizar los productos")
     },
