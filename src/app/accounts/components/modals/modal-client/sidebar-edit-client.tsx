@@ -1,16 +1,13 @@
 "use client"
 
 import { Upload, User, Phone, Mail, MapPin, FileText } from "lucide-react"
-import { useId } from "react"
+import { JSX, useId } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useModalStore } from "@/shared/store/modal.store"
-import { Modals } from "@/app/accounts/types/modals-name"
-
-// ✅ usa el mismo mapper que ya usas en la tabla
-import { mapClientsToExport } from "@/app/accounts/utils/clients-export" // <-- AJUSTA LA RUTA si es otra
+import { mapClientsToExport } from "@/app/accounts/utils/clients-export" // <-- ajusta ruta si cambia
 
 const PDF_MODAL_ID = "modal-preview-clients-pdf"
 
@@ -18,7 +15,7 @@ export function SidebarEditClient() {
   const photoInputId = useId()
 
   const dataModal = useModalStore((state) =>
-    state.openModals.find((m) => m.id === Modals.EDIT_CLIENT),
+    state.openModals.find((m) => m.id === "modal-edit-client"),
   )?.prop as any
 
   const userName = dataModal
@@ -40,7 +37,6 @@ export function SidebarEditClient() {
       return
     }
 
-    // ✅ mandamos solo 1 cliente como reporte
     const exportClients = mapClientsToExport([dataModal])
 
     useModalStore.getState().openModal(PDF_MODAL_ID, {
@@ -153,7 +149,7 @@ function InfoItem({
   label,
   value,
 }: {
-  icon: React.ReactNode
+  icon: JSX.Element
   label: string
   value: string
 }) {

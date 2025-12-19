@@ -163,7 +163,7 @@ export default function ModalAddClient() {
       {
         onSuccess: ({ clientId }) => {
           setCreatedClientId(clientId)
-          toast.success("Cliente creado. Ahora puedes crear cuentas y tarjetas.")
+         
           setActiveTab("cuentas")
         },
         onError: (err: any) => {

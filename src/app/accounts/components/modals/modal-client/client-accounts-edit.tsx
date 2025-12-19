@@ -215,8 +215,6 @@ export function ClientAccountsEdit({ clientId }: ClientAccountsEditProps) {
       },
       {
         onSuccess: async () => {
-          toast.success("Cuenta actualizada.", { id: `save-${account.accountId}` })
-
           // ✅ al guardar, se limpian los edits -> el tachito desaparece
           setEditedAccounts((prev) => {
             const next = { ...prev }

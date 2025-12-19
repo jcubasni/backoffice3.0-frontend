@@ -19,9 +19,6 @@ import {
   useGetDistrictById,
 } from "@/app/accounts/hooks/useUbigeoService"
 
-/**
- * 🧩 Helper: obtiene la dirección principal (addresses[0] o isPrimary)
- */
 const getPrimaryAddress = (client: ClientResponse) => {
   if (!client.addresses || client.addresses.length === 0) return undefined
   return client.addresses.find((a) => a.isPrimary) ?? client.addresses[0]
@@ -35,43 +32,34 @@ export function ClientEditInfo({ client }: ClientEditInfoProps) {
   const form = useFormContext<EditClientSchema>()
   const isRuc = client.documentType?.name?.toUpperCase() === "RUC"
 
-  // ✅ districtId inicial: primero del payload del modal, si no, desde addresses[].district.id
   const primary = useMemo(() => getPrimaryAddress(client), [client])
 
   const initialDistrictId =
-    (client as any)?.districtId ??
-    (primary as any)?.district?.id ??
-    ""
+    (client as any)?.districtId ?? (primary as any)?.district?.id ?? ""
 
-  // ✅ Watch de cascada
   const [departmentId, provinceId, districtId] = useWatch({
     control: form.control,
     name: ["departmentId", "provinceId", "districtId"],
   })
 
-  // ✅ Query para resolver dep/prov desde districtId
   const districtByIdQuery = useGetDistrictById(
     (districtId as string) || initialDistrictId,
   )
 
-  // ✅ Queries Ubigeo
   const departmentsQuery = useGetDepartments()
   const provincesQuery = useGetProvinces(departmentId)
   const districtsQuery = useGetDistricts(departmentId, provinceId)
 
-  /**
-   * 🧠 Hydration guard:
-   * Cuando precargamos dep/prov/district desde el endpoint,
-   * NO queremos que la cascada los limpie.
-   */
   const hydratingRef = useRef(false)
   const didInitRef = useRef(false)
 
-  // ✅ 1) Precargar departmentId + provinceId + districtId desde GET /ubigeo/districts/:id
+  // ✅ para detectar cambios reales del usuario
+  const prevDepartmentRef = useRef<string>("")
+  const prevProvinceRef = useRef<string>("")
+
+  // ✅ 1) Precargar departmentId + provinceId + districtId desde districtId inicial
   useEffect(() => {
     if (didInitRef.current) return
-
-    // si no hay districtId para resolver, no hacemos nada
     if (!initialDistrictId) {
       didInitRef.current = true
       return
@@ -84,7 +72,6 @@ export function ClientEditInfo({ client }: ClientEditInfoProps) {
     const provId = resolved.province?.id ?? ""
     const distId = resolved.id ?? ""
 
-    // Si ya están seteados, no sobreescribimos
     const currentDep = form.getValues("departmentId") ?? ""
     const currentProv = form.getValues("provinceId") ?? ""
     const currentDist = form.getValues("districtId") ?? ""
@@ -115,29 +102,58 @@ export function ClientEditInfo({ client }: ClientEditInfoProps) {
       shouldValidate: false,
     })
 
-    // liberamos el guard en el siguiente tick
+    // setear prevs para que NO dispare resets por primera vez
+    prevDepartmentRef.current = depId
+    prevProvinceRef.current = provId
+
     queueMicrotask(() => {
       hydratingRef.current = false
       didInitRef.current = true
     })
   }, [districtByIdQuery.data, form, initialDistrictId])
 
-  // ✅ 2) Reset cascada (solo cuando cambia por el USUARIO, no por precarga)
+  // ✅ 2) Reset cascada SOLO si el usuario cambió realmente el departamento
   useEffect(() => {
-    if (!departmentId) return
-    if (hydratingRef.current) return
+    const prev = prevDepartmentRef.current
+    const curr = (departmentId as string) ?? ""
 
-    // si el usuario cambió departamento, limpiamos provincia/distrito
-    form.setValue("provinceId", "", { shouldDirty: true })
-    form.setValue("districtId", "", { shouldDirty: true })
+    // primera vez o hidratando -> no tocar
+    if (hydratingRef.current) {
+      prevDepartmentRef.current = curr
+      return
+    }
+    if (!prev) {
+      prevDepartmentRef.current = curr
+      return
+    }
+
+    if (prev !== curr) {
+      form.setValue("provinceId", "", { shouldDirty: true, shouldValidate: true })
+      form.setValue("districtId", "", { shouldDirty: true, shouldValidate: true })
+    }
+
+    prevDepartmentRef.current = curr
   }, [departmentId, form])
 
+  // ✅ 3) Reset cascada SOLO si el usuario cambió realmente la provincia
   useEffect(() => {
-    if (!provinceId) return
-    if (hydratingRef.current) return
+    const prev = prevProvinceRef.current
+    const curr = (provinceId as string) ?? ""
 
-    // si el usuario cambió provincia, limpiamos distrito
-    form.setValue("districtId", "", { shouldDirty: true })
+    if (hydratingRef.current) {
+      prevProvinceRef.current = curr
+      return
+    }
+    if (!prev) {
+      prevProvinceRef.current = curr
+      return
+    }
+
+    if (prev !== curr) {
+      form.setValue("districtId", "", { shouldDirty: true, shouldValidate: true })
+    }
+
+    prevProvinceRef.current = curr
   }, [provinceId, form])
 
   return (
@@ -146,19 +162,16 @@ export function ClientEditInfo({ client }: ClientEditInfoProps) {
         Información Personal
       </h2>
 
-      {/* 🔒 Tipo de documento (solo lectura) */}
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium">Tipo de documento</label>
         <Input value={client.documentType?.name ?? ""} disabled readOnly />
       </div>
 
-      {/* 🔒 N° documento (solo lectura) */}
       <div className="flex flex-col gap-1">
         <label className="text-sm font-medium">N° documento</label>
         <Input value={client.documentNumber} disabled readOnly />
       </div>
 
-      {/* 👇 Campos editables */}
       <InputForm
         label={isRuc ? "Razón social" : "Nombres"}
         classContainer={cn(isRuc ? "col-span-full" : "col-span-1")}
@@ -173,7 +186,6 @@ export function ClientEditInfo({ client }: ClientEditInfoProps) {
 
       <InputForm label="Direccion" name="address" classContainer="col-span-2" />
 
-      {/* ✅ Departamento */}
       <ComboBoxForm
         name="departmentId"
         label="Departamento"
@@ -182,7 +194,6 @@ export function ClientEditInfo({ client }: ClientEditInfoProps) {
         options={dataToCombo(departmentsQuery.data ?? [], "id", "name")}
       />
 
-      {/* ✅ Provincia */}
       <ComboBoxForm
         name="provinceId"
         label="Provincia"
@@ -192,7 +203,6 @@ export function ClientEditInfo({ client }: ClientEditInfoProps) {
         options={dataToCombo(provincesQuery.data ?? [], "id", "name")}
       />
 
-      {/* ✅ Distrito */}
       <ComboBoxForm
         name="districtId"
         label="Distrito"
