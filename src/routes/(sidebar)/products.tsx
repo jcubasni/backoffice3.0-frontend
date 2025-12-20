@@ -17,6 +17,7 @@ export const Route = createFileRoute("/(sidebar)/products")({
   component: RouteComponent,
   staticData: {
     headerTitle: "Lista de Productos",
+    
   },
 })
 
