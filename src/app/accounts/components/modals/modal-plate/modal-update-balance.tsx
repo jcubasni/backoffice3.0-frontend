@@ -22,16 +22,21 @@ type UpdateBalanceModalProp = {
   availableAccountBalance?: number
 }
 
-// ✅ NOTE OBLIGATORIO (según tu backend)
+/**
+ * Front: nota opcional (UX)
+ * Backend: nota obligatoria (validación)
+ * => Solución: si el usuario no escribe nota, enviamos un valor por defecto.
+ */
 const schema = z.object({
-  amount: z.coerce.number().min(0.01, "El monto debe ser mayor a 0"),
-  note: z
-    .string()
-    .trim()
-    .min(1, "La nota es obligatoria (ej: Recarga)") // ✅ obligatorio
+  amount: z.coerce
+    .number()
+    .min(0.01, "El monto debe ser mayor a 0"),
+  note: z.string().optional(),
 })
 
 type FormData = z.infer<typeof schema>
+
+const DEFAULT_NOTE = "Recarga"
 
 export default function ModalUpdateBalance() {
   const modalData = useModalStore((state) =>
@@ -52,7 +57,6 @@ export default function ModalUpdateBalance() {
     mode: "onChange",
   })
 
-  // ✅ useWatch para que el “Saldo final” se actualice siempre
   const amount = useWatch({ control: form.control, name: "amount" }) ?? 0
 
   useEffect(() => {
@@ -68,9 +72,15 @@ export default function ModalUpdateBalance() {
   const willExceed =
     typeof availableAccountBalance === "number" && amount > availableAccountBalance
 
+  const handleClose = () => {
+    closeModal(Modals.UPDATE_BALANCE)
+    form.reset({ amount: 0, note: "" })
+  }
+
   const onSubmit = (data: FormData) => {
     if (!accountId || !accountCardId) return
 
+    // ✅ Validación UI (además del backend)
     if (typeof availableAccountBalance === "number" && data.amount > availableAccountBalance) {
       form.setError("amount", {
         type: "manual",
@@ -82,19 +92,22 @@ export default function ModalUpdateBalance() {
       return
     }
 
+    // ✅ Nota opcional en UI, pero siempre no-vacía en request
+    const noteToSend =
+      data.note?.trim() && data.note.trim().length > 0 ? data.note.trim() : DEFAULT_NOTE
+
     assignBalance.mutate(
       {
         accountId,
         body: {
-          cardId: accountCardId,
+          cardId: accountCardId, // ✅ backend: "cardId" = accountCardId
           amount: data.amount,
-          note: data.note.trim(), // ✅ siempre no-vacío
+          note: noteToSend,
         },
       },
       {
         onSuccess: () => {
-          closeModal(Modals.UPDATE_BALANCE)
-          form.reset({ amount: 0, note: "" })
+          handleClose()
         },
       },
     )
@@ -107,13 +120,15 @@ export default function ModalUpdateBalance() {
       modalId={Modals.UPDATE_BALANCE}
       title="Agregar saldo a tarjeta"
       className="overflow-y-auto sm:w-[440px]"
-      onClose={() => closeModal(Modals.UPDATE_BALANCE)}
+      onClose={handleClose}
     >
       <FormWrapper form={form} onSubmit={onSubmit} className="space-y-4">
         <div className="space-y-2 rounded-md border border-border p-3 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Saldo actual (tarjeta)</span>
-            <span className="font-semibold">{formatCurrency(currentCardBalance, "PEN")}</span>
+            <span className="font-semibold">
+              {formatCurrency(currentCardBalance, "PEN")}
+            </span>
           </div>
 
           {typeof availableAccountBalance === "number" && (
@@ -127,7 +142,9 @@ export default function ModalUpdateBalance() {
 
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Saldo final (tarjeta)</span>
-            <span className="font-semibold">{formatCurrency(nextCardBalance, "PEN")}</span>
+            <span className="font-semibold">
+              {formatCurrency(nextCardBalance, "PEN")}
+            </span>
           </div>
 
           {willExceed && (
@@ -147,23 +164,26 @@ export default function ModalUpdateBalance() {
         />
 
         <InputForm
-          label="Nota"
+          label="Nota (opcional)"
           name="note"
           type="text"
-          placeholder="Ej: Recarga"
+          placeholder={`Ej: ${DEFAULT_NOTE}`}
         />
 
         <Modal.Footer className="grid-cols-2">
           <Button
             type="button"
             variant="outline"
-            onClick={() => closeModal(Modals.UPDATE_BALANCE)}
+            onClick={handleClose}
             disabled={assignBalance.isPending}
           >
             Cancelar
           </Button>
 
-          <Button type="submit" disabled={assignBalance.isPending || willExceed}>
+          <Button
+            type="submit"
+            disabled={assignBalance.isPending || willExceed}
+          >
             {assignBalance.isPending ? "Guardando..." : "Agregar"}
           </Button>
         </Modal.Footer>

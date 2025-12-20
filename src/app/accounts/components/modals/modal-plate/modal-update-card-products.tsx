@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Plus, Package, X } from "lucide-react"
 import { toast } from "sonner"
@@ -40,13 +40,14 @@ export default function ModalUpdateCardProducts() {
   const productsQuery = useGetProducts()
 
   const [selectedProductId, setSelectedProductId] = useState("")
-  const [toAdd, setToAdd] = useState<number[]>([])
-  const [toRemove, setToRemove] = useState<number[]>([])
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
 
   const current = props?.currentProducts ?? []
-  const currentIds = useMemo(() => new Set(current.map((p) => p.id)), [current])
+  const currentRealIds = useMemo(
+    () => current.map((p) => p.id).filter((id) => id !== 0),
+    [current],
+  )
 
-  // ✅ Mapa: productId -> description (para pintar nombres)
   const productNameById = useMemo(() => {
     const map = new Map<number, string>()
     ;(productsQuery.data ?? []).forEach((p: any) => {
@@ -61,122 +62,120 @@ export default function ModalUpdateCardProducts() {
     return productNameById.get(id) ?? `ID: ${id}`
   }
 
-  // ✅ ids reales del catálogo (sin TODOS=0)
   const allRealProductIds = useMemo(() => {
     return (productsQuery.data ?? [])
       .map((p: any) => Number(p.productId))
       .filter((id) => id !== 0)
   }, [productsQuery.data])
 
-  // ✅ ids reales actuales (por si el backend mete TODOS=0)
-  const currentRealIds = useMemo(() => {
-    return current.map((p) => p.id).filter((id) => id !== 0)
-  }, [current])
-
-  // ✅ Detecta si esta tarjeta equivale a "TODOS"
-  const isAll = useMemo(() => {
-    if (allRealProductIds.length === 0) return false
-    if (currentRealIds.length === 0) return false
-
-    const allSet = new Set(allRealProductIds)
-    const curSet = new Set(currentRealIds)
-
-    if (allSet.size !== curSet.size) return false
-    for (const id of allSet) {
-      if (!curSet.has(id)) return false
-    }
+  const isAllSelected = useMemo(() => {
+    if (!allRealProductIds.length) return false
+    const a = new Set(allRealProductIds)
+    const b = new Set(selectedIds)
+    if (a.size !== b.size) return false
+    for (const id of a) if (!b.has(id)) return false
     return true
-  }, [allRealProductIds, currentRealIds])
+  }, [allRealProductIds, selectedIds])
 
-  // ✅ true si toRemove contiene *todos* los currentRealIds
-  const isRemovingAll = useMemo(() => {
-    if (!currentRealIds.length) return false
-    const r = new Set(toRemove)
-    return currentRealIds.every((id) => r.has(id))
-  }, [currentRealIds, toRemove])
+  const finalCount = useMemo(() => selectedIds.length, [selectedIds])
+  const canSave = finalCount > 0
 
-  // Opciones del combo (bloquea ya asignados y los que ya agregaste)
   const productsOptions = useMemo(() => {
     const all = productsQuery.data ?? []
-    const blocked = new Set<number>([...Array.from(currentIds), ...toAdd])
-
+    const blocked = new Set<number>(selectedIds)
     return dataToCombo(
       all.filter((p: any) => !blocked.has(Number(p.productId))),
       "productId",
       "description",
     )
-  }, [productsQuery.data, currentIds, toAdd])
+  }, [productsQuery.data, selectedIds])
+
+  useEffect(() => {
+    if (!isOpen || !props) return
+
+    // Estado final inicial = lo que vino del backend.
+    // Si vino "TODOS" como lista completa, igual queda seleccionado todo.
+    setSelectedIds(currentRealIds)
+    setSelectedProductId("")
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, props?.accountCardId])
+
+  const handleSelectAll = () => {
+    const ids = Array.from(new Set(allRealProductIds))
+    setSelectedIds(ids)
+    setSelectedProductId("")
+  }
+
+  const handleClearAll = () => {
+    setSelectedIds([])
+    setSelectedProductId("")
+  }
+
+  const handleAddOne = () => {
+    const id = Number(selectedProductId)
+    if (!id) return
+
+    if (id === 0) {
+      handleSelectAll()
+      return
+    }
+
+    setSelectedIds((prev) => (prev.includes(id) ? prev : [...prev, id]))
+    setSelectedProductId("")
+  }
+
+  const handleRemoveSelected = (id: number) => {
+    setSelectedIds((prev) => prev.filter((x) => x !== id))
+  }
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (!props) throw new Error("No props")
+      if (selectedIds.length === 0) {
+        toast.error("La tarjeta debe tener al menos 1 producto.")
+        throw new Error("EMPTY_PRODUCTS_NOT_ALLOWED")
+      }
+
+      const before = new Set(currentRealIds)
+      const after = new Set(selectedIds)
+
+      const remove = Array.from(before).filter((id) => !after.has(id))
+      const add = Array.from(after).filter((id) => !before.has(id))
 
       return updateCard(props.accountCardId, {
-        products: {
-          remove: toRemove,
-          add: toAdd,
-        },
+        products: { remove, add },
       })
     },
     onSuccess: async () => {
-  toast.success("Productos actualizados correctamente")
+      toast.success("Productos actualizados correctamente")
 
-  // 1) Marca stale
-  await Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["plates", "by-client", props!.clientId] }),
-    queryClient.invalidateQueries({ queryKey: ["client", props!.clientId] }),
-    queryClient.invalidateQueries({ queryKey: ["accounts", "by-client", props!.clientId] }),
-  ])
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["plates", "by-client", props!.clientId],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["accounts", "by-client", props!.clientId],
+        }),
+        queryClient.invalidateQueries({ queryKey: ["client", props!.clientId] }),
+      ])
 
-  // 2) Fuerza refetch YA (esto es la clave)
-  await Promise.all([
-    queryClient.refetchQueries({ queryKey: ["plates", "by-client", props!.clientId] }),
-    queryClient.refetchQueries({ queryKey: ["client", props!.clientId] }),
-    queryClient.refetchQueries({ queryKey: ["accounts", "by-client", props!.clientId] }),
-  ])
+      await Promise.all([
+        queryClient.refetchQueries({
+          queryKey: ["plates", "by-client", props!.clientId],
+        }),
+        queryClient.refetchQueries({
+          queryKey: ["accounts", "by-client", props!.clientId],
+        }),
+        queryClient.refetchQueries({ queryKey: ["client", props!.clientId] }),
+      ])
 
-  // 3) Recién cierras
-  closeModal(Modals.UPDATE_CARD_PRODUCTS)
-},
-
-    onError: () => {
+      closeModal(Modals.UPDATE_CARD_PRODUCTS)
+    },
+    onError: (err: any) => {
+      if (err?.message === "EMPTY_PRODUCTS_NOT_ALLOWED") return
       toast.error("No se pudo actualizar los productos")
     },
   })
-
-  const handleAdd = () => {
-    const id = Number(selectedProductId)
-    if (!id) return
-
-    // Si lo habías marcado para remover, lo desmarcas
-    setToRemove((prev) => prev.filter((x) => x !== id))
-
-    // Si ya está en current, no agregar
-    if (currentIds.has(id)) return
-
-    setToAdd((prev) => (prev.includes(id) ? prev : [...prev, id]))
-    setSelectedProductId("")
-  }
-
-  const handleRemoveCurrent = (id: number) => {
-    // si estaba en "add", solo lo quitamos de add
-    setToAdd((prev) => prev.filter((x) => x !== id))
-
-    // si estaba en current => marcar para remove
-    if (currentIds.has(id)) {
-      setToRemove((prev) => (prev.includes(id) ? prev : [...prev, id]))
-    }
-  }
-
-  const handleUndoRemove = (id: number) => {
-    setToRemove((prev) => prev.filter((x) => x !== id))
-  }
-
-  // ✅ Marcar todos para remover con 1 click (mantiene PATCH real)
-  const handleRemoveAll = () => {
-    setToAdd([])
-    setToRemove(currentRealIds)
-  }
 
   if (!isOpen || !props) return null
 
@@ -185,6 +184,11 @@ export default function ModalUpdateCardProducts() {
       modalId={Modals.UPDATE_CARD_PRODUCTS}
       title="Editar productos de tarjeta"
       className="h-fit max-w-xl rounded-lg"
+      scrollable
+      onClose={() => {
+        setSelectedIds([])
+        setSelectedProductId("")
+      }}
     >
       <div className="space-y-4">
         <div className="rounded-md bg-sidebar/60 p-3 text-sm">
@@ -199,142 +203,78 @@ export default function ModalUpdateCardProducts() {
         </div>
 
         <div className="space-y-2">
-          <p className="text-sm font-semibold">Productos actuales</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold">Productos seleccionados</p>
 
-          {current.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Sin productos asignados.
-            </p>
-          ) : isAll ? (
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                
+                onClick={handleSelectAll}
+                disabled={!allRealProductIds.length || mutation.isPending}
+              >
+                Seleccionar TODOS
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                
+                onClick={handleClearAll}
+                disabled={selectedIds.length === 0 || mutation.isPending}
+              >
+                Limpiar
+              </Button>
+            </div>
+          </div>
+
+          {selectedIds.length === 0 ? (
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground">No hay productos.</p>
+              <p className="text-xs text-red-500">
+                Debes seleccionar al menos 1 producto para poder guardar.
+              </p>
+            </div>
+          ) : isAllSelected ? (
             <div className="flex flex-wrap gap-2">
               <Badge className="flex items-center gap-2">
-                <span>TODOS ({currentRealIds.length})</span>
-
+                <span>TODOS ({selectedIds.length})</span>
                 <button
                   type="button"
-                  title={isRemovingAll ? "Ya marcado para remover" : "Quitar TODOS"}
-                  onClick={handleRemoveAll}
-                  disabled={isRemovingAll}
+                  title="Quitar TODOS"
+                  onClick={handleClearAll}
+                  disabled={mutation.isPending}
                 >
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
-
-              {isRemovingAll && (
-                <p className="w-full text-xs text-muted-foreground">
-                  Todos los productos fueron marcados para remover. Presiona{" "}
-                  <strong>Guardar</strong> para confirmar.
-                </p>
-              )}
             </div>
           ) : (
             <div className="flex flex-wrap gap-2">
-              {current.map((p) => {
-                const marked = toRemove.includes(p.id)
-                return (
-                  <Badge
-                    key={p.id}
-                    variant={marked ? "destructive" : "secondary"}
-                    className="flex items-center gap-2"
+              {selectedIds.map((id) => (
+                <Badge
+                  key={id}
+                  variant="secondary"
+                  className="flex items-center gap-2"
+                >
+                  <span>{getProductName(id)}</span>
+                  <button
+                    type="button"
+                    title="Quitar"
+                    onClick={() => handleRemoveSelected(id)}
+                    disabled={mutation.isPending}
                   >
-                    <span>{p.name}</span>
-
-                    {marked ? (
-                      <button
-                        type="button"
-                        onClick={() => handleUndoRemove(p.id)}
-                        title="Deshacer"
-                      >
-                        <Plus className="h-3 w-3 rotate-45" />
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveCurrent(p.id)}
-                        title="Quitar"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </Badge>
-                )
-              })}
-            </div>
-          )}
-
-          {toAdd.length > 0 && (
-            <div className="space-y-2 pt-2">
-              <p className="text-sm font-semibold">Productos a agregar</p>
-              <div className="flex flex-wrap gap-2">
-                {toAdd.map((id) => (
-                  <Badge key={id} className="flex items-center gap-2">
-                    <span>{getProductName(id)}</span>
-                    <button
-                      type="button"
-                      title="Quitar"
-                      onClick={() =>
-                        setToAdd((prev) => prev.filter((x) => x !== id))
-                      }
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
             </div>
           )}
         </div>
 
-        {/* ✅ Aquí el cambio: si está removiendo TODOS, solo 1 badge */}
-        {toRemove.length > 0 && (
-          <div className="space-y-2 pt-2">
-            <p className="text-sm font-semibold">Productos a remover</p>
-
-            {isAll && isRemovingAll ? (
-              <div className="flex flex-wrap gap-2">
-                <Badge
-                  variant="destructive"
-                  className="flex items-center gap-2"
-                >
-                  <span>QUITAR TODOS ({currentRealIds.length})</span>
-
-                  <button
-                    type="button"
-                    title="Deshacer"
-                    onClick={() => setToRemove([])}
-                  >
-                    <Plus className="h-3 w-3 rotate-45" />
-                  </button>
-                </Badge>
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {toRemove.map((id) => (
-                  <Badge
-                    key={id}
-                    variant="destructive"
-                    className="flex items-center gap-2"
-                  >
-                    <span>{getProductName(id)}</span>
-
-                    <button
-                      type="button"
-                      title="Deshacer"
-                      onClick={() => handleUndoRemove(id)}
-                    >
-                      <Plus className="h-3 w-3 rotate-45" />
-                    </button>
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         <div className="space-y-2">
           <p className="text-sm font-semibold">Agregar producto</p>
-
-            
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <ComboBox
@@ -345,17 +285,20 @@ export default function ModalUpdateCardProducts() {
               onSelect={setSelectedProductId}
               className="w-full"
               searchable
-              disabled={isAll && !isRemovingAll}
+              disabled={mutation.isPending}
             />
+
             <Button
               type="button"
-              onClick={handleAdd}
-              disabled={!selectedProductId || (isAll && !isRemovingAll)}
+              onClick={handleAddOne}
+              disabled={!selectedProductId || mutation.isPending}
             >
               <Plus className="mr-2 h-4 w-4" />
               Agregar
             </Button>
           </div>
+
+          
         </div>
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -367,10 +310,11 @@ export default function ModalUpdateCardProducts() {
           >
             Cancelar
           </Button>
+
           <Button
             type="button"
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
+            disabled={mutation.isPending || !canSave}
           >
             Guardar
           </Button>

@@ -20,6 +20,9 @@ import {
   useGetProvinces,
 } from "@/app/accounts/hooks/useUbigeoService"
 
+// ✅ nuevo
+import { applyPersonToForm } from "@/app/person/utils/apply-person-to-form"
+
 export function ClientInfo() {
   const form = useFormContext<CreateClientSchema>()
 
@@ -34,7 +37,6 @@ export function ClientInfo() {
   const provincesQuery = useGetProvinces(departmentId)
   const districtsQuery = useGetDistricts(departmentId, provinceId)
 
-  // ✅ options memoizadas (IMPORTANTE)
   const documentTypeOptions = useMemo(
     () => dataToCombo(documentTypes.data ?? [], "id", "name"),
     [documentTypes.data],
@@ -55,7 +57,6 @@ export function ClientInfo() {
     [districtsQuery.data],
   )
 
-  // ✅ reset cascada (con guardas)
   useEffect(() => {
     const currentProvince = form.getValues("provinceId")
     const currentDistrict = form.getValues("districtId")
@@ -77,13 +78,31 @@ export function ClientInfo() {
     documentType,
     documentNumber,
     shouldValidate: handleSearchWithValidation,
-    onSuccess: (data) => {
-      const { firstName, lastName, fiscalAddress: address } = data
+    onSuccess: (data: any) => {
+      /**
+       * data puede venir de:
+       * - Interno (PersonByDocumentResponse-like): { firstName,lastName,email,phone,address{...} }
+       * - Externo (UserInfo): { firstName,lastName,fiscalAddress,ubigeo }
+       */
 
-      form.setValue("firstName", firstName)
-      form.setValue("lastName", lastName ?? "")
-      form.setValue("address", address ?? "")
- 
+      // ✅ Caso externo (lookup)
+      if ("fiscalAddress" in data) {
+        form.setValue("firstName", data.firstName)
+        form.setValue("lastName", data.lastName ?? "")
+        form.setValue("address", data.fiscalAddress ?? "")
+        return
+      }
+
+      // ✅ Caso interno (BD Persona)
+      applyPersonToForm(form.setValue, data, {
+        firstName: "firstName",
+        lastName: "lastName",
+        email: "email",
+        phone: "phone",
+        // tu form usa "address" (string), así que mapeamos addressLine1 ahí
+        addressLine1: "address",
+        districtId: "districtId",
+      })
     },
   })
 
@@ -99,7 +118,6 @@ export function ClientInfo() {
         className="w-full!"
         searchable
         options={documentTypeOptions}
-        // ✅ NO vuelvas a setValue manualmente (ComboBoxForm ya hace onChange)
         onSelect={() => form.trigger("documentNumber")}
       />
 
