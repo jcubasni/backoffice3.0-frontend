@@ -336,7 +336,6 @@ export function useEditClient() {
               : primary.district,
           }
 
-
             return {
               ...updatedClient,
               addresses: client.addresses.map((addr) =>
@@ -344,7 +343,6 @@ export function useEditClient() {
               ),
             }
           }
-
           return updatedClient
         })
       })

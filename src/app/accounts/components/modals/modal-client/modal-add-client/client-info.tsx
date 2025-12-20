@@ -16,11 +16,11 @@ import { dataToCombo } from "@/shared/lib/combo-box"
 
 import {
   useGetDepartments,
+  useGetDistrictById, // ✅ NUEVO
   useGetDistricts,
   useGetProvinces,
 } from "@/app/accounts/hooks/useUbigeoService"
 
-// ✅ nuevo
 import { applyPersonToForm } from "@/app/person/utils/apply-person-to-form"
 
 export function ClientInfo() {
@@ -29,13 +29,16 @@ export function ClientInfo() {
   const documentTypes = useGetDocumentTypes()
   const departmentsQuery = useGetDepartments()
 
-  const [documentType, documentNumber, departmentId, provinceId] = useWatch({
+  const [documentType, documentNumber, departmentId, provinceId, districtId] = useWatch({
     control: form.control,
-    name: ["documentType", "documentNumber", "departmentId", "provinceId"],
+    name: ["documentType", "documentNumber", "departmentId", "provinceId", "districtId"],
   })
 
   const provincesQuery = useGetProvinces(departmentId)
   const districtsQuery = useGetDistricts(departmentId, provinceId)
+
+  // ✅ NUEVO: cuando haya districtId, resolvemos departmentId y provinceId
+  const districtByIdQuery = useGetDistrictById(districtId)
 
   const documentTypeOptions = useMemo(
     () => dataToCombo(documentTypes.data ?? [], "id", "name"),
@@ -57,16 +60,37 @@ export function ClientInfo() {
     [districtsQuery.data],
   )
 
+  // ✅ Si districtId ya vino seteado (por búsqueda Persona),
+  // resolvemos provinceId + departmentId para que se carguen opciones y se muestren combos.
+  useEffect(() => {
+    const d = districtByIdQuery.data
+    if (!d) return
+
+    const nextDep = String((d as any).departmentId ?? "")
+    const nextProv = String((d as any).provinceId ?? "")
+
+    const currDep = form.getValues("departmentId")
+    const currProv = form.getValues("provinceId")
+
+    // Setear en orden para que carguen queries cascada
+    if (nextDep && currDep !== nextDep) form.setValue("departmentId", nextDep)
+    if (nextProv && currProv !== nextProv) form.setValue("provinceId", nextProv)
+    // districtId ya está seteado (no lo tocamos)
+  }, [districtByIdQuery.data, form])
+
+  // ✅ reset cascada (cuando el usuario cambia manualmente dept/prov)
   useEffect(() => {
     const currentProvince = form.getValues("provinceId")
     const currentDistrict = form.getValues("districtId")
 
+    // 👇 si dept cambia manualmente, limpiar prov/dist
     if (currentProvince) form.setValue("provinceId", "")
     if (currentDistrict) form.setValue("districtId", "")
   }, [departmentId, form])
 
   useEffect(() => {
     const currentDistrict = form.getValues("districtId")
+    // 👇 si prov cambia manualmente, limpiar distrito
     if (currentDistrict) form.setValue("districtId", "")
   }, [provinceId, form])
 
@@ -79,12 +103,6 @@ export function ClientInfo() {
     documentNumber,
     shouldValidate: handleSearchWithValidation,
     onSuccess: (data: any) => {
-      /**
-       * data puede venir de:
-       * - Interno (PersonByDocumentResponse-like): { firstName,lastName,email,phone,address{...} }
-       * - Externo (UserInfo): { firstName,lastName,fiscalAddress,ubigeo }
-       */
-
       // ✅ Caso externo (lookup)
       if ("fiscalAddress" in data) {
         form.setValue("firstName", data.firstName)
@@ -99,7 +117,6 @@ export function ClientInfo() {
         lastName: "lastName",
         email: "email",
         phone: "phone",
-        // tu form usa "address" (string), así que mapeamos addressLine1 ahí
         addressLine1: "address",
         districtId: "districtId",
       })

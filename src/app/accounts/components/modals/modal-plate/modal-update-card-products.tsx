@@ -9,6 +9,7 @@ import Modal from "@/shared/components/ui/modal"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { ComboBox } from "@/shared/components/ui/combo-box"
+import { Separator } from "@/components/ui/separator"
 import { useModalStore } from "@/shared/store/modal.store"
 import { Modals } from "@/app/accounts/types/modals-name"
 import { dataToCombo } from "@/shared/lib/combo-box"
@@ -77,8 +78,7 @@ export default function ModalUpdateCardProducts() {
     return true
   }, [allRealProductIds, selectedIds])
 
-  const finalCount = useMemo(() => selectedIds.length, [selectedIds])
-  const canSave = finalCount > 0
+  const canSave = selectedIds.length > 0
 
   const productsOptions = useMemo(() => {
     const all = productsQuery.data ?? []
@@ -92,9 +92,6 @@ export default function ModalUpdateCardProducts() {
 
   useEffect(() => {
     if (!isOpen || !props) return
-
-    // Estado final inicial = lo que vino del backend.
-    // Si vino "TODOS" como lista completa, igual queda seleccionado todo.
     setSelectedIds(currentRealIds)
     setSelectedProductId("")
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -142,9 +139,7 @@ export default function ModalUpdateCardProducts() {
       const remove = Array.from(before).filter((id) => !after.has(id))
       const add = Array.from(after).filter((id) => !before.has(id))
 
-      return updateCard(props.accountCardId, {
-        products: { remove, add },
-      })
+      return updateCard(props.accountCardId, { products: { remove, add } })
     },
     onSuccess: async () => {
       toast.success("Productos actualizados correctamente")
@@ -191,6 +186,7 @@ export default function ModalUpdateCardProducts() {
       }}
     >
       <div className="space-y-4">
+        {/* Header card */}
         <div className="rounded-md bg-sidebar/60 p-3 text-sm">
           <div className="flex items-center justify-between">
             <div className="font-medium">
@@ -202,15 +198,16 @@ export default function ModalUpdateCardProducts() {
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
+        {/* Productos seleccionados */}
+        <section className="rounded-lg border border-border/60 bg-background/40 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm font-semibold">Productos seleccionados</p>
 
-            <div className="flex items-center gap-2">
+            <div className="flex w-full gap-2 sm:w-auto sm:justify-end">
               <Button
                 type="button"
                 variant="outline"
-                
+                className="w-full sm:w-auto"
                 onClick={handleSelectAll}
                 disabled={!allRealProductIds.length || mutation.isPending}
               >
@@ -220,7 +217,7 @@ export default function ModalUpdateCardProducts() {
               <Button
                 type="button"
                 variant="outline"
-                
+                className="w-full sm:w-auto"
                 onClick={handleClearAll}
                 disabled={selectedIds.length === 0 || mutation.isPending}
               >
@@ -229,56 +226,59 @@ export default function ModalUpdateCardProducts() {
             </div>
           </div>
 
-          {selectedIds.length === 0 ? (
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">No hay productos.</p>
-              <p className="text-xs text-red-500">
-                Debes seleccionar al menos 1 producto para poder guardar.
-              </p>
-            </div>
-          ) : isAllSelected ? (
-            <div className="flex flex-wrap gap-2">
-              <Badge className="flex items-center gap-2">
-                <span>TODOS ({selectedIds.length})</span>
-                <button
-                  type="button"
-                  title="Quitar TODOS"
-                  onClick={handleClearAll}
-                  disabled={mutation.isPending}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {selectedIds.map((id) => (
-                <Badge
-                  key={id}
-                  variant="secondary"
-                  className="flex items-center gap-2"
-                >
-                  <span>{getProductName(id)}</span>
+          <div className="mt-3">
+            {selectedIds.length === 0 ? (
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">No hay productos</p>
+                
+              </div>
+            ) : isAllSelected ? (
+              <div className="flex flex-wrap gap-2">
+                <Badge className="flex items-center gap-2">
+                  <span>TODOS ({selectedIds.length})</span>
                   <button
                     type="button"
-                    title="Quitar"
-                    onClick={() => handleRemoveSelected(id)}
+                    title="Quitar TODOS"
+                    onClick={handleClearAll}
                     disabled={mutation.isPending}
                   >
                     <X className="h-3 w-3" />
                   </button>
                 </Badge>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {selectedIds.map((id) => (
+                  <Badge
+                    key={id}
+                    variant="secondary"
+                    className="flex items-center gap-2"
+                  >
+                    <span>{getProductName(id)}</span>
+                    <button
+                      type="button"
+                      title="Quitar"
+                      onClick={() => handleRemoveSelected(id)}
+                      disabled={mutation.isPending}
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
 
-        <div className="space-y-2">
+        <Separator className="opacity-40" />
+
+        {/* Agregar producto */}
+        <section className="rounded-lg border border-border/60 bg-background/40 p-4">
           <p className="text-sm font-semibold">Agregar producto</p>
 
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
             <ComboBox
-              label="Producto"
+              
               placeholder="Selecciona un producto"
               value={selectedProductId}
               options={productsOptions}
@@ -290,6 +290,7 @@ export default function ModalUpdateCardProducts() {
 
             <Button
               type="button"
+              className="w-full sm:w-auto"
               onClick={handleAddOne}
               disabled={!selectedProductId || mutation.isPending}
             >
@@ -299,25 +300,30 @@ export default function ModalUpdateCardProducts() {
           </div>
 
           
-        </div>
+        </section>
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => closeModal(Modals.UPDATE_CARD_PRODUCTS)}
-            disabled={mutation.isPending}
-          >
-            Cancelar
-          </Button>
+        {/* Footer centrado */}
+        <div className="sticky bottom-0 -mx-4 mt-2 border-t border-border/60 bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+          <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => closeModal(Modals.UPDATE_CARD_PRODUCTS)}
+              disabled={mutation.isPending}
+              className="w-full"
+            >
+              Cancelar
+            </Button>
 
-          <Button
-            type="button"
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || !canSave}
-          >
-            Guardar
-          </Button>
+            <Button
+              type="button"
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending || !canSave}
+              className="w-full"
+            >
+              Guardar
+            </Button>
+          </div>
         </div>
       </div>
     </Modal>

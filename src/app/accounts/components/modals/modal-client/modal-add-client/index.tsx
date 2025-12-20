@@ -200,7 +200,7 @@ export default function ModalAddClient() {
         onSubmit={handleSubmit}
         className="flex min-h-[85vh] flex-1 flex-col lg:flex-row"
       >
-        <Sidebar />
+        <Sidebar/>
 
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
           <div className="mb-4 flex items-center justify-between gap-2 px-2">
