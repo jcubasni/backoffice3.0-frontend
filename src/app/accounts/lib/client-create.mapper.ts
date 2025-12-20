@@ -4,6 +4,9 @@ import type { CreateClientBody } from "../services/clients.service"
 export const mapCreateClientSchemaToCreateClientBody = (
   data: CreateClientSchema,
 ): CreateClientBody => {
+  const hasAddress = !!data.address
+  const hasDistrict = !!data.districtId
+
   return {
     documentTypeId: Number(data.documentType),
     documentNumber: data.documentNumber,
@@ -11,12 +14,13 @@ export const mapCreateClientSchemaToCreateClientBody = (
     lastName: data.lastName || undefined,
     email: data.email || undefined,
     phone: data.phone || undefined,
-    // dateOfBirth: data.dateOfBirth || undefined, // si lo tienes
-    address: data.address
+
+    // ✅✅ CAMBIO: si hay address o districtId, mandamos address object
+    address: hasAddress || hasDistrict
       ? {
-          addressLine1: data.address,
-          reference: data.reference || undefined,
+          addressLine1: data.address ?? "",
           districtId: data.districtId || undefined,
+          // reference: data.reference || undefined, // (lo comentas como dijiste)
         }
       : undefined,
   }

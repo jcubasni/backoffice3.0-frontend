@@ -33,7 +33,7 @@ import { useModalStore } from "@/shared/store/modal.store"
 export const Route = createFileRoute("/(sidebar)/detail-boxes/")({
   component: RouteComponent,
   validateSearch: detailBoxesSearchParams,
-  staticData: { headerTitle: "Detalle de cajas" },
+  staticData: { headerTitle: "Liquidación Caja" },
 })
 
 function RouteComponent() {

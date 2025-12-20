@@ -17,15 +17,15 @@ export const Options: ItemSidebar[] = [
     icon: LayoutDashboard,
     items: [
       {
-        title: "Parte Diario",
-        url: Routes.DailyReport,
-      },
-      {
-        title: "Detalle de cajas",
+        title: "Liquidación Caja",
         url: Routes.DetailBoxes,
       },
       {
-        title: "Depósito de cajas",
+        title: "Cuadre Diario",
+        url: Routes.DailyReport,
+      },
+      {
+        title: "Depósito Diario",
         url: Routes.BankDeposit,
       },
     ],

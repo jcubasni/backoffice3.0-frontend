@@ -16,7 +16,7 @@ import { useModalStore } from "@/shared/store/modal.store"
 export const Route = createFileRoute("/(sidebar)/bank-deposit/")({
   component: RouteComponent,
   staticData: {
-    headerTitle: "Depósitos Bancarios",
+    headerTitle: "Depósito Diario",
   },
 })
 

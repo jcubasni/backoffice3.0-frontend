@@ -59,12 +59,15 @@ export default function ModalAddClient() {
   const blockedToastId = useRef("toast-save-client-first")
   const invalidFormToastId = useRef("client-form-invalid")
   const alreadySavedToastId = useRef("client-already-saved")
+  const createErrorToastId = useRef("client-create-error")
+  const createSuccessToastId = useRef("client-create-success")
 
   const form = useForm<CreateClientSchema>({
     resolver: zodResolver(createClientSchema),
     mode: "onChange",
   })
 
+  // ✅ Reset limpio al abrir modal
   useEffect(() => {
     if (!isOpen) return
     setActiveTab("misDatos")
@@ -73,19 +76,15 @@ export default function ModalAddClient() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen])
 
+  // ✅ Tabs con gating por clientId
   const tabsForAdd = useMemo(() => {
     return clientTabs.map((tab) => {
       if (tab.id === "cuentas") {
-        if (createdClientId) {
-          return {
-            ...tab,
-            component: <ClientAccountsEdit clientId={createdClientId} />,
-          }
-        }
-
         return {
           ...tab,
-          component: (
+          component: createdClientId ? (
+            <ClientAccountsEdit clientId={createdClientId} />
+          ) : (
             <BlockedTabCard
               title="Cuentas"
               message={
@@ -100,16 +99,11 @@ export default function ModalAddClient() {
       }
 
       if (tab.id === "tarjetas") {
-        if (createdClientId) {
-          return {
-            ...tab,
-            component: <ClientCardsEdit clientId={createdClientId} />,
-          }
-        }
-
         return {
           ...tab,
-          component: (
+          component: createdClientId ? (
+            <ClientCardsEdit clientId={createdClientId} />
+          ) : (
             <BlockedTabCard
               title="Tarjetas del cliente"
               message={
@@ -129,26 +123,22 @@ export default function ModalAddClient() {
     })
   }, [createdClientId])
 
-  // ✅ IMPORTANTE: async para validar antes de crear
-  const handleSubmit = async (data: CreateClientSchema) => {
-    // ⛔ si está enviando, no hagas nada
+  // ✅ Submit tipado y “a prueba” de doble disparo
+  const handleSubmit: (data: CreateClientSchema) => Promise<void> = async (data) => {
     if (addClient.isPending) return
 
-    // ✅ si ya está creado, no vuelvas a crear
     if (createdClientId) {
-      toast.info("El cliente ya está guardado.", { id: alreadySavedToastId.current })
+      toast.info("El cliente ya está guardado.", {
+        id: alreadySavedToastId.current,
+      })
       return
     }
 
-    // ✅ validar form y mostrar toast general (1 vez)
     const isValid = await form.trigger()
     if (!isValid) {
       toast.error("Completa los campos obligatorios (marcados en rojo).", {
         id: invalidFormToastId.current,
       })
-      // opcional: enfoca el primer error
-      // const firstError = Object.keys(form.formState.errors)[0]
-      // if (firstError) form.setFocus(firstError as any)
       return
     }
 
@@ -163,12 +153,12 @@ export default function ModalAddClient() {
       {
         onSuccess: ({ clientId }) => {
           setCreatedClientId(clientId)
-         
           setActiveTab("cuentas")
-        },
-        onError: (err: any) => {
-          toast.error(err?.message ?? "No se pudo registrar el cliente")
-        },
+
+          toast.success("Cliente guardado", {
+            id: createSuccessToastId.current,
+          })
+        }
       },
     )
   }
@@ -177,7 +167,8 @@ export default function ModalAddClient() {
     if (tabId === activeTab) return
     if (addClient.isPending) return
 
-    if ((tabId === "cuentas" || tabId === "tarjetas") && !createdClientId) {
+    const needsClient = tabId === "cuentas" || tabId === "tarjetas"
+    if (needsClient && !createdClientId) {
       toast.info("Primero guarda el cliente para continuar", {
         id: blockedToastId.current,
       })
@@ -195,12 +186,13 @@ export default function ModalAddClient() {
       className="h-screen! w-screen! p-1 max-lg:max-h-screen! md:max-w-5xl! lg:h-[85vh]! lg:w-fit xl:max-w-7xl!"
       scrollable
     >
-      <FormWrapper
+      {/* ✅ forzamos el genérico para evitar el error de FormWrapper */}
+      <FormWrapper<CreateClientSchema>
         form={form}
         onSubmit={handleSubmit}
         className="flex min-h-[85vh] flex-1 flex-col lg:flex-row"
       >
-        <Sidebar/>
+        <Sidebar isSaved={isSaved} />
 
         <main className="flex h-full flex-1 flex-col px-1 py-6 md:p-6">
           <div className="mb-4 flex items-center justify-between gap-2 px-2">

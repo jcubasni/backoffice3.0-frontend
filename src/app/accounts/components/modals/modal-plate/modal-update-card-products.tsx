@@ -229,8 +229,7 @@ export default function ModalUpdateCardProducts() {
           <div className="mt-3">
             {selectedIds.length === 0 ? (
               <div className="space-y-1">
-                <p className="text-sm text-muted-foreground">No hay productos</p>
-                
+                <p className="text-sm text-muted-foreground">No hay productos.</p>
               </div>
             ) : isAllSelected ? (
               <div className="flex flex-wrap gap-2">
@@ -278,7 +277,6 @@ export default function ModalUpdateCardProducts() {
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
             <ComboBox
-              
               placeholder="Selecciona un producto"
               value={selectedProductId}
               options={productsOptions}
@@ -299,10 +297,8 @@ export default function ModalUpdateCardProducts() {
             </Button>
           </div>
 
-          
         </section>
 
-        {/* Footer centrado */}
         <div className="sticky bottom-0 -mx-4 mt-2 border-t border-border/60 bg-background/95 px-4 pt-4 backdrop-blur supports-[backdrop-filter]:bg-background/80">
           <div className="mx-auto grid w-full max-w-md grid-cols-2 gap-3">
             <Button

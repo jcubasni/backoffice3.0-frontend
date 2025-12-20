@@ -22,12 +22,14 @@ const optionalNumber = numberCoerce
  * - Zod nativeEnum no acepta "".
  * - Entonces: preprocesamos "" -> undefined y mostramos mensaje humano.
  */
-const documentTypeSchema = z.preprocess(
-  (val) => (val === "" || val === null ? undefined : val),
-  z.nativeEnum(DocumentTypeCode, {
-    errorMap: () => ({ message: "Selecciona un tipo de documento" }),
-  }),
-)
+const documentTypeSchema = z
+  .union([z.literal(""), z.nativeEnum(DocumentTypeCode)])
+  .transform((val) => (val === "" ? undefined : val))
+  .refine((val) => val !== undefined, {
+    message: "Selecciona un tipo de documento",
+  })
+
+
 
 // Schema para la data de cuenta de crédito
 const accountDataSchema = z

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo } from "react"
+import { useEffect, useMemo, useRef } from "react"
 import { Search } from "lucide-react"
 import { useFormContext, useWatch } from "react-hook-form"
 
@@ -16,7 +16,7 @@ import { dataToCombo } from "@/shared/lib/combo-box"
 
 import {
   useGetDepartments,
-  useGetDistrictById, // ✅ NUEVO
+  useGetDistrictById,
   useGetDistricts,
   useGetProvinces,
 } from "@/app/accounts/hooks/useUbigeoService"
@@ -37,8 +37,8 @@ export function ClientInfo() {
   const provincesQuery = useGetProvinces(departmentId)
   const districtsQuery = useGetDistricts(departmentId, provinceId)
 
-  // ✅ NUEVO: cuando haya districtId, resolvemos departmentId y provinceId
-  const districtByIdQuery = useGetDistrictById(districtId)
+  // ✅ cuando hay districtId, resolvemos dep/prov desde el backend
+  const districtByIdQuery = useGetDistrictById(districtId || "")
 
   const documentTypeOptions = useMemo(
     () => dataToCombo(documentTypes.data ?? [], "id", "name"),
@@ -60,38 +60,90 @@ export function ClientInfo() {
     [districtsQuery.data],
   )
 
-  // ✅ Si districtId ya vino seteado (por búsqueda Persona),
-  // resolvemos provinceId + departmentId para que se carguen opciones y se muestren combos.
+  /**
+   * ✅ Guard para que la cascada NO limpie valores cuando estamos “precargando”
+   */
+  const hydratingRef = useRef(false)
+
+  /**
+   * ✅ 1) Si districtId ya vino seteado (por búsqueda Persona),
+   * resolvemos provinceId + departmentId para que se carguen opciones y se muestren combos.
+   */
   useEffect(() => {
     const d = districtByIdQuery.data
     if (!d) return
+    if (!districtId) return
 
-    const nextDep = String((d as any).departmentId ?? "")
-    const nextProv = String((d as any).provinceId ?? "")
+    const nextDep = String(d.department?.id ?? "")
+    const nextProv = String(d.province?.id ?? "")
 
-    const currDep = form.getValues("departmentId")
-    const currProv = form.getValues("provinceId")
+    const currDep = form.getValues("departmentId") ?? ""
+    const currProv = form.getValues("provinceId") ?? ""
+
+    // Si ya está todo bien, no hagas nada
+    if ((nextDep && currDep === nextDep) && (nextProv && currProv === nextProv)) return
+
+    hydratingRef.current = true
 
     // Setear en orden para que carguen queries cascada
-    if (nextDep && currDep !== nextDep) form.setValue("departmentId", nextDep)
-    if (nextProv && currProv !== nextProv) form.setValue("provinceId", nextProv)
+    if (nextDep && currDep !== nextDep) {
+      form.setValue("departmentId", nextDep, { shouldDirty: true })
+    }
+    if (nextProv && currProv !== nextProv) {
+      form.setValue("provinceId", nextProv, { shouldDirty: true })
+    }
     // districtId ya está seteado (no lo tocamos)
-  }, [districtByIdQuery.data, form])
 
-  // ✅ reset cascada (cuando el usuario cambia manualmente dept/prov)
+    queueMicrotask(() => {
+      hydratingRef.current = false
+    })
+  }, [districtByIdQuery.data, districtId, form])
+
+  /**
+   * ✅ 2) Reset cascada SOLO cuando el usuario cambia dept/prov
+   * (si estamos hidratando, no limpiamos)
+   */
+  const prevDepRef = useRef<string | undefined>(undefined)
+  const prevProvRef = useRef<string | undefined>(undefined)
+
   useEffect(() => {
-    const currentProvince = form.getValues("provinceId")
-    const currentDistrict = form.getValues("districtId")
+    // primera vuelta
+    if (prevDepRef.current === undefined) {
+      prevDepRef.current = departmentId
+      return
+    }
 
-    // 👇 si dept cambia manualmente, limpiar prov/dist
-    if (currentProvince) form.setValue("provinceId", "")
-    if (currentDistrict) form.setValue("districtId", "")
+    if (hydratingRef.current) {
+      prevDepRef.current = departmentId
+      return
+    }
+
+    // si cambia departamento por usuario => limpiar prov/dist
+    if (prevDepRef.current !== departmentId) {
+      form.setValue("provinceId", "", { shouldDirty: true })
+      form.setValue("districtId", "", { shouldDirty: true })
+    }
+
+    prevDepRef.current = departmentId
   }, [departmentId, form])
 
   useEffect(() => {
-    const currentDistrict = form.getValues("districtId")
-    // 👇 si prov cambia manualmente, limpiar distrito
-    if (currentDistrict) form.setValue("districtId", "")
+    if (prevProvRef.current === undefined) {
+      prevProvRef.current = provinceId
+      return
+    }
+
+    if (hydratingRef.current) {
+      prevProvRef.current = provinceId
+      return
+    }
+
+    // si cambia provincia por usuario => limpiar distrito
+    if (prevProvRef.current !== provinceId) {
+      form.setValue("districtId", "", { shouldDirty: true })
+    }
+
+    prevProvRef.current = provinceId
   }, [provinceId, form])
 
   const handleSearchWithValidation = async () => {
@@ -112,6 +164,7 @@ export function ClientInfo() {
       }
 
       // ✅ Caso interno (BD Persona)
+      // 👇 aquí llega districtId y el efecto de arriba completa dep/prov
       applyPersonToForm(form.setValue, data, {
         firstName: "firstName",
         lastName: "lastName",

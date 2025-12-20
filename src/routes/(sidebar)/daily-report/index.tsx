@@ -21,7 +21,7 @@ export const Route = createFileRoute("/(sidebar)/daily-report/")({
   component: RouteComponent,
   validateSearch: dailyReportSearchSchema,
   staticData: {
-    headerTitle: "Lista de cuadres",
+    headerTitle: "Cuadre Diario",
   },
 })
 

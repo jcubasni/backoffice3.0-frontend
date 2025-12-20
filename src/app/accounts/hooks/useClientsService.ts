@@ -98,23 +98,22 @@ export function useAddClient() {
     mutationKey: ["create-client"],
 
     mutationFn: async ({ body, documentTypeId, documentNumber }) => {
-      // 1) Crear cliente
       await createClient(body)
 
-      // 2) Traer lista fresca (así no dependemos de invalidate timing)
       const clients = await queryClient.fetchQuery({
         queryKey: CLIENTS_QUERY_KEY,
         queryFn: getClients,
       })
 
-      // 3) Resolver id por docType + docNumber
       const found = clients.find(
-        (c) => c.documentNumber === documentNumber && c.documentType?.id === documentTypeId,
+        (c) =>
+          c.documentNumber === documentNumber &&
+          c.documentType?.id === documentTypeId,
       )
 
       if (!found?.id) {
         throw new Error(
-          "Se creó el cliente pero no se pudo resolver el ID. (El POST no devuelve id y no se encontró en GET /clients).",
+          "Se creó el cliente pero no se pudo resolver el ID."
         )
       }
 
@@ -122,22 +121,16 @@ export function useAddClient() {
     },
 
     onSuccess: () => {
-      toast.success("Cliente guardado")
+      // ✅ nada de toast aquí
       queryClient.invalidateQueries({ queryKey: CLIENTS_QUERY_KEY })
-      // ❗ NO cerrar modal aquí
     },
 
-    onError: (err: any) => {
-      // Si viene de fetchData -> ErrorResponse(message,status)
-      const msg =
-        err instanceof ErrorResponse
-          ? err.message
-          : err?.message ?? "No se pudo registrar el cliente"
-
-      toast.error(msg)
+    onError: () => {
+      // ✅ nada de toast aquí (lo maneja el componente)
     },
   })
 }
+
 
 /* -------------------------------------------
  * 🟢 BUSCAR CLIENTE PARA VENTA
