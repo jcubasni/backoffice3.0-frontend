@@ -1,3 +1,4 @@
+//Productos prueba//
 import { createFileRoute } from "@tanstack/react-router"
 import { BadgePlus } from "lucide-react"
 import { ModalsProduct } from "@/app/products/components/modal/modals-product"
